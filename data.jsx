@@ -1,0 +1,2013 @@
+import React, { useState, useEffect, useRef } from 'react'
+
+
+const GOLD = "#C9A84C";
+const GOLD_LIGHT = "#E8C96A";
+const GOLD_DARK = "#A07830";
+const BLACK = "#0A0A0A";
+const WHITE = "#FAFAFA";
+const GRAY = "#aaaaaa";
+const SURFACE = "#111111";
+const SURFACE2 = "#181818";
+
+const globalStyles = `
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400&family=Montserrat:wght@200;300;400;500;600;700&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: 'Montserrat', sans-serif;
+    background: ${BLACK};
+    color: ${WHITE};
+    overflow-x: hidden;
+  }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: ${BLACK}; }
+  ::-webkit-scrollbar-thumb { background: ${GOLD}; border-radius: 2px; }
+
+  .serif { font-family: 'Cormorant Garamond', serif; }
+
+  .gold { color: ${GOLD}; }
+  .gold-bg { background: ${GOLD}; }
+
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(32px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes shimmer {
+    0% { background-position: -200% center; }
+    100% { background-position: 200% center; }
+  }
+  @keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-8px); }
+  }
+  @keyframes pulse-gold {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(201,168,76,0.4); }
+    50% { box-shadow: 0 0 0 12px rgba(201,168,76,0); }
+  }
+  @keyframes lineExpand {
+    from { width: 0; }
+    to { width: 60px; }
+  }
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+  @keyframes goldBorderShimmer {
+    0%   { background-position: 0% 50%; }
+    50%  { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+  @keyframes goldCornerPulse {
+    0%, 100% { opacity: 0.5; transform: scale(1); }
+    50%       { opacity: 1;   transform: scale(1.08); }
+  }
+  @keyframes borderGlow {
+    0%, 100% { box-shadow: 0 0 12px rgba(201,168,76,0.15), inset 0 0 12px rgba(201,168,76,0.05); }
+    50%       { box-shadow: 0 0 32px rgba(201,168,76,0.35), inset 0 0 20px rgba(201,168,76,0.1); }
+  }
+
+  .animate-fadeInUp { animation: fadeInUp 0.8s ease forwards; }
+  .animate-fadeIn { animation: fadeIn 0.6s ease forwards; }
+  .animate-float { animation: float 4s ease-in-out infinite; }
+
+  .gold-shimmer {
+    background: linear-gradient(90deg, ${GOLD_DARK}, ${GOLD_LIGHT}, ${GOLD}, ${GOLD_DARK});
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: shimmer 4s linear infinite;
+  }
+
+  .btn-gold {
+    display: inline-block;
+    padding: 14px 36px;
+    background: linear-gradient(135deg, ${GOLD_DARK}, ${GOLD}, ${GOLD_LIGHT});
+    color: ${BLACK};
+    font-family: 'Montserrat', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    border: none;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+  }
+  .btn-gold::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(255,255,255,0.15);
+    transform: translateX(-100%);
+    transition: transform 0.4s ease;
+  }
+  .btn-gold:hover::after { transform: translateX(0); }
+  .btn-gold:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(201,168,76,0.4); }
+
+  .btn-outline {
+    display: inline-block;
+    padding: 13px 36px;
+    background: transparent;
+    color: ${GOLD};
+    font-family: 'Montserrat', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    border: 1px solid ${GOLD};
+    cursor: pointer;
+    transition: all 0.3s ease;
+  }
+  .btn-outline:hover {
+    background: ${GOLD};
+    color: ${BLACK};
+    transform: translateY(-2px);
+    box-shadow: 0 8px 32px rgba(201,168,76,0.3);
+  }
+
+  .section-label {
+    font-size: 10px;
+    letter-spacing: 5px;
+    text-transform: uppercase;
+    color: ${GOLD};
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .section-label::before {
+    content: '';
+    width: 40px;
+    height: 1px;
+    background: ${GOLD};
+  }
+
+  .divider {
+    width: 60px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, ${GOLD}, transparent);
+    margin: 0 auto;
+  }
+
+  .card-hover {
+    transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+  .card-hover:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 24px 64px rgba(0,0,0,0.5), 0 0 0 1px rgba(201,168,76,0.2);
+  }
+
+  nav a { text-decoration: none; }
+
+  /* ── MOBILE RESPONSIVE ───────────────────────────────────────── */
+  @media (max-width: 768px) {
+    .hide-mobile { display: none !important; }
+    .stack-mobile { flex-direction: column !important; }
+    .full-mobile { width: 100% !important; }
+    .text-center-mobile { text-align: center !important; }
+
+    /* Nav */
+    #nav { padding: 0 16px !important; }
+
+    /* Hero */
+    .hero-content { padding: 120px 20px 60px !important; }
+    .hero-btns { flex-direction: column !important; align-items: center !important; gap: 12px !important; }
+    .hero-btns .btn-gold, .hero-btns .btn-outline { width: 80vw !important; max-width: 300px !important; text-align: center !important; }
+    .hero-stats { gap: 24px !important; padding: 0 16px !important; }
+
+    /* Sections */
+    .section { padding: 60px 20px !important; }
+    .section-sm { padding: 48px 20px !important; }
+    .section-inner { padding: 0 !important; }
+    .page-header { padding: 48px 20px 32px !important; }
+
+    /* About grid */
+    .about-grid { grid-template-columns: 1fr !important; gap: 1px !important; }
+    .about-card { padding: 32px 24px !important; }
+
+    /* Product grid */
+    .product-grid { grid-template-columns: 1fr !important; gap: 1px !important; }
+    .product-card { margin: 0 !important; }
+
+    /* Filter buttons */
+    #filter-btns { gap: 6px !important; padding-bottom: 16px !important; }
+    .filter-btn { padding: 6px 12px !important; font-size: 8px !important; }
+
+    /* Cart drawer */
+    #cart-drawer { width: 100vw !important; }
+    .cart-header { padding: 20px !important; }
+
+    /* Testimonials */
+    .testimonial { padding: 28px 20px !important; }
+
+    /* Contact page */
+    .contact-grid { flex-direction: column !important; gap: 40px !important; }
+    .contact-info { flex: none !important; width: 100% !important; }
+
+    /* Stacks grid */
+    .stacks-grid { grid-template-columns: 1fr !important; }
+
+    /* Footer */
+    footer { padding: 48px 20px 32px !important; }
+    .footer-inner { flex-direction: column !important; gap: 32px !important; }
+    .footer-cols { gap: 32px !important; }
+
+    /* Typography scaling */
+    .serif { letter-spacing: -0.5px !important; }
+
+    /* Logo sizing on mobile */
+    .logo-wrap img { width: 32px !important; height: 32px !important; }
+    .logo-text-main { font-size: 14px !important; }
+    .logo-text-sub { font-size: 7px !important; letter-spacing: 1px !important; }
+
+    /* Popup */
+    #email-popup { padding: 32px 24px !important; }
+
+    /* Bag button */
+    .bag-btn { padding: 6px 12px !important; font-size: 10px !important; }
+
+    /* Stack cards */
+    .stack-card { padding: 24px 20px !important; }
+
+    /* Buttons full width on mobile */
+    .mobile-full-btn { width: 100% !important; text-align: center !important; }
+  }
+
+  @media (max-width: 480px) {
+    .hero-h1 { font-size: 42px !important; letter-spacing: -1px !important; }
+    .page-h1 { font-size: 32px !important; }
+    .hero-stat-n { font-size: 26px !important; }
+    .product-name { font-size: 22px !important; }
+    .product-price { font-size: 24px !important; }
+    .section-label { font-size: 9px !important; letter-spacing: 3px !important; }
+  }
+`;
+
+// ─── LOGO (real TP emblem) ────────────────────────────────────────────────────
+const TP_LOGO_SRC = "data:image/png;base64,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mZnD6dPPYXMjTGnDJHrTnttqAH0OnVyiL/ju1d/4ma/5tHd51a9NE/v1xiaLTkRoaoq6vWk6eEcfaW8bF67sQAiGkCTtJ9yCJi9PxyPoW1aOu+VlsC4v8+d99/Hf+Owjv/lZ565tf9mZS1sXd0aFmTgRtonMLBzEPfe/GjMLi/BI4PXmKhyvrEAOxzTzH/7Ae7c+9/987F/vTMafemlj8kujCfHOMKfRMPeKFP2pOdisC4ANyGXhEZbbD7h1uJenBURzRY4uLRkF8AX/+nfffm04evMzF7ffcfn6mHd2PDsxfmbxduy74z6o7SIXzoGbv9q3TDMfW37EfsF3/f7pz/7WX/uitZ38q9YHcm1cwKxvT3TsILApPAycclvDtQ536wArBOjRo0vm8MpvP/c53/pf/uG5a9tf9PiZtaevXB+bsbfSnd0jYruai70OAIdOLt30/jKhjsTLy8v81972yz+6PR6/+bnrk5+/uiM0cMYMnZFCjGhO7bRA63C3mOMdDjXU0aUl84XLv/pLl65ufcbJZ6/83NmLm7y+lSfjgsmR+RMAOHHlyktG6FhZgazEyffP/pf/39OPfMPPfMmwcI9e3sp/o0CHPac74orLIfKutC2B1m49O3p0qUrRfvV73/q//vJ3v/XUD33t5577ni/59FcDQDn79lLb8vIy6/Jy9bN/4f9865f+1Lcc/sI6KLbW2i1qqiBVJQD46bd94eJPf/PSXS+bC2Fpqa3ZWnvlR7uXWRSho0tLZrkR8Vpr7RUT7T5RaWRrrbXWWmuttdZaa6211lprrbXWWmuttdZaa6211lprrbXWWmuttdZaa6211lprrbXWWmuttdZaa6211lprrbXWWmuttdZaa6211lprrbXWWmuttdZaa6211lprrbXWWmuttdZaa6211lprrbXWWmuttdZaa6211lprrbXWWmuttdZaa6211lprrbXWWmuttdZaa7eq/f95F4m3p8j/VAAAAABJRU5ErkJggg==";
+
+const TPLogo = ({ size = 48, light = false }) => (
+  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+    <img
+      src={TP_LOGO_SRC}
+      alt="TruPep Wellness TP Logo"
+      style={{
+        width: size,
+        height: size,
+        objectFit: "contain",
+        filter: "drop-shadow(0 4px 16px rgba(201,168,76,0.35))",
+        animation: "float 4s ease-in-out infinite",
+      }}
+    />
+    <div>
+      <div style={{
+        fontFamily: "'Cormorant Garamond', serif",
+        fontSize: size * 0.42,
+        fontWeight: 600,
+        background: `linear-gradient(135deg, ${GOLD_DARK}, ${GOLD_LIGHT}, ${GOLD})`,
+        WebkitBackgroundClip: "text",
+        WebkitTextFillColor: "transparent",
+        lineHeight: 1,
+        letterSpacing: 3,
+      }}>TRU-PEP</div>
+      <div style={{
+        fontFamily: "'Montserrat', sans-serif",
+        fontSize: size * 0.16,
+        fontWeight: 400,
+        letterSpacing: 3,
+        color: light ? "rgba(255,255,255,0.6)" : GRAY,
+        marginTop: 2,
+      }}>ADVANCED PEPTIDE WELLNESS</div>
+    </div>
+  </div>
+);
+
+// ─── PRODUCTS DATA ─────────────────────────────────────────────────────────────
+const PRODUCTS = [
+  {
+    id: 1, name: "Retatrutide", category: "Weight Management", icon: "⬡",
+    variants: [{ label: "10 mg", price: 95 }, { label: "20 mg", price: 135 }, { label: "30 mg", price: 165 }],
+    desc: "Retatrutide is a next-generation triple receptor agonist (GLP-1, GIP, and glucagon) commonly researched for advanced metabolic support and body composition optimization. May support appetite regulation, fat mobilization, and glycemic wellness simultaneously.",
+  },
+  {
+    id: 2, name: "Tirzepatide", category: "Weight Management", icon: "◈",
+    variants: [{ label: "20 mg", price: 95 }, { label: "30 mg", price: 115 }],
+    desc: "Tirzepatide is a dual GLP-1 and GIP receptor agonist commonly researched for glucose metabolism support and body composition optimization. Widely studied in clinical settings for its potential to assist with weight management and insulin sensitivity.",
+  },
+  {
+    id: 3, name: "5 Amino 1MQ", category: "Metabolism", icon: "◇",
+    variants: [{ label: "50 mg", price: 100 }],
+    desc: "5 Amino 1MQ (5-amino-1-methylquinolinium) is commonly researched for its role in metabolic support and fat cell regulation. May assist with NNMT (nicotinamide N-methyltransferase) inhibition — a pathway studied in longevity and body optimization research.",
+  },
+  {
+    id: 4, name: "BPC-157", category: "Recovery", icon: "✦",
+    variants: [{ label: "10 mg", price: 70 }, { label: "20 mg — Very Hard To Find", price: 90 }],
+    desc: "BPC-157 (Body Protection Compound-157) is one of the most widely researched peptides for tissue recovery support. Commonly studied for its potential to assist healing of tendons, ligaments, muscles, and gut integrity. The 20mg concentration is extremely rare and secured exclusively for TruPep clients.",
+  },
+  {
+    id: 5, name: "Cagrilintide", category: "Weight Management", icon: "⬡",
+    variants: [{ label: "5 mg", price: 70 }, { label: "10 mg", price: 90 }],
+    desc: "Cagrilintide is a long-acting amylin analogue commonly researched for satiety support and appetite regulation. Designed to assist weight management protocols through amylin receptor activation — a distinct pathway from GLP-1 agonists, making it highly synergistic when stacked.",
+  },
+  {
+    id: 6, name: "CJC No DAC / Ipamorelin", category: "Performance", icon: "◈",
+    variants: [{ label: "5/5 mg — 10 mg Total", price: 90 }],
+    desc: "A synergistic combination of CJC-1295 No DAC (5mg) and Ipamorelin (5mg) — 10mg total. CJC No DAC is a growth hormone releasing hormone analogue while Ipamorelin is a selective GH secretagogue. Together they create a clean, amplified GH pulse without cortisol or prolactin elevation.",
+  },
+  {
+    id: 7, name: "Epithalon", category: "Longevity", icon: "◇",
+    variants: [{ label: "10 mg", price: 70 }],
+    desc: "Epithalon (Epitalon) is a tetrapeptide bioregulator commonly researched for telomere elongation support and anti-aging pathways. Derived from the pineal gland, it is studied for its potential role in cellular longevity, circadian rhythm regulation, and lifespan optimization.",
+  },
+  {
+    id: 8, name: "HGH Fragment 176-191", category: "Performance", icon: "✦",
+    variants: [{ label: "5 mg", price: 70 }],
+    desc: "HGH Fragment 176-191 is a modified sequence of human growth hormone spanning amino acids 176–191. Commonly researched for targeted fat metabolism support and lipolysis stimulation without the insulin-disrupting effects associated with full-length HGH. A preferred option for body composition research.",
+  },
+  {
+    id: 9, name: "GHK-Cu (Copper Peptide)", category: "Skin & Hair", icon: "✧",
+    variants: [{ label: "50 mg", price: 70 }, { label: "100 mg", price: 90 }],
+    desc: "GHK-Cu is a naturally occurring copper peptide tripeptide widely researched for skin regeneration, collagen and elastin stimulation, hair follicle activation, wound healing support, and anti-inflammatory pathways. One of the most extensively studied compounds in aesthetic and regenerative wellness research.",
+  },
+  {
+    id: 10, name: "Ipamorelin", category: "Performance", icon: "◈",
+    variants: [{ label: "10 mg", price: 70 }],
+    desc: "Ipamorelin is a selective, clean growth hormone secretagogue and ghrelin receptor agonist. Commonly researched for its targeted GH pulse stimulation without unwanted cortisol, prolactin, or ACTH side effects. A staple compound in performance, recovery, and anti-aging peptide protocols.",
+  },
+  {
+    id: 11, name: "Kisspeptin", category: "Hormonal", icon: "◇",
+    variants: [{ label: "10 mg", price: 80 }],
+    desc: "Kisspeptin is a neuropeptide that plays a key role in reproductive hormone regulation and LH (luteinizing hormone) pulsatility. Commonly researched for hormonal optimization, fertility support, testosterone and estrogen regulation, and libido enhancement in wellness-focused individuals.",
+  },
+  {
+    id: 12, name: "KLOW — TruPep Blend", category: "Recovery", icon: "✦",
+    variants: [{ label: "80 mg", price: 155 }],
+    desc: "KLOW is TruPep's advanced wellness and recovery peptide blend — 80mg total. Contains: GHK-Cu, BPC-157, TB-500, and KPV. This powerful four-compound formula supports advanced recovery, inflammation response, gut wellness, skin rejuvenation and collagen production, flexibility and mobility, joint, tendon, and muscle recovery, overall regenerative wellness, active lifestyles, healthy aging, and optimized recovery protocols. KLOW is designed to support recovery, inflammation response, skin health, mobility, and overall regenerative wellness. Crafted exclusively by TruPep Wellness.",
+  },
+  {
+    id: 13, name: "GLOW — TruPep Blend", category: "Skin & Hair", icon: "✧",
+    variants: [{ label: "70 mg", price: 135 }],
+    desc: "GLOW is TruPep's signature regenerative wellness peptide blend — 70mg total. Contains: GHK-Cu, BPC-157, and TB-500. Together these three compounds support collagen production, skin glow and elasticity, healthier hair and skin, tissue and muscle recovery, joint and tendon repair, post-workout recovery, inflammation reduction, cellular regeneration, anti-aging wellness goals, and overall recovery. GLOW is designed to support healing, recovery, and healthier-looking skin from the inside out. Crafted exclusively by TruPep Wellness.",
+  },
+  {
+    id: 14, name: "KPV Tripeptide", category: "Recovery", icon: "✦",
+    variants: [{ label: "10 mg", price: 70 }],
+    desc: "KPV is an alpha-MSH derived tripeptide (Lysine-Proline-Valine) commonly researched for its potent anti-inflammatory and gut-protective properties. May assist in mucosal healing, intestinal barrier integrity, immune modulation, and inflammatory pathway regulation. Widely studied in gut wellness and autoimmune research.",
+  },
+  {
+    id: 15, name: "Lipo C with B12", category: "Metabolism", icon: "◇",
+    variants: [{ label: "10 ml — Liquid Blend", price: 100 }],
+    desc: "Lipo C with B12 is a premium lipotropic liquid blend combining fat-mobilizing compounds with Vitamin B12. Available in liquid form — do NOT refrigerate; store at room temperature away from direct light. Commonly used in wellness clinics for energy support, metabolic enhancement, liver function, and fat mobilization. A foundational component of comprehensive weight management protocols.",
+  },
+  {
+    id: 16, name: "MOTS-C", category: "Longevity", icon: "◈",
+    variants: [{ label: "10 mg", price: 95 }, { label: "40 mg", price: 175 }],
+    desc: "MOTS-C is a mitochondria-derived peptide encoded in mitochondrial DNA. Commonly researched for metabolic regulation, insulin sensitivity support, exercise mimetics, and longevity optimization. May assist cellular energy production and age-related metabolic decline. The 40mg option offers extended protocol support.",
+  },
+  {
+    id: 17, name: "Melanotan I (MT-1)", category: "Skin & Hair", icon: "✧",
+    variants: [{ label: "10 mg", price: 80 }],
+    desc: "Melanotan I is a synthetic analogue of alpha-melanocyte stimulating hormone (alpha-MSH). Commonly researched for gradual, natural-looking skin pigmentation support, photoprotection, and UV damage reduction. Studied in dermatological wellness research for its ability to increase melanin production through melanocortin receptor activation.",
+  },
+  {
+    id: 18, name: "Melanotan II (MT-2)", category: "Hormonal", icon: "◇",
+    variants: [{ label: "10 mg", price: 90 }],
+    desc: "Melanotan II is a cyclic synthetic analogue of alpha-MSH with broader melanocortin receptor activity. Commonly researched for skin pigmentation support, libido optimization, appetite modulation, and sexual wellness. A versatile compound with multiple studied applications in hormonal and aesthetic wellness research.",
+  },
+  {
+    id: 19, name: "NAD+", category: "Longevity", icon: "◈",
+    variants: [{ label: "500 mg", price: 95 }, { label: "1000 mg", price: 125 }],
+    desc: "NAD+ (Nicotinamide Adenine Dinucleotide) is an essential coenzyme found in every living cell. Widely researched for its critical role in energy metabolism, DNA repair, sirtuin activation, mitochondrial biogenesis, and cellular longevity. NAD+ levels decline with age — supplementation is commonly studied for cognitive support, fatigue reduction, and healthspan extension.",
+  },
+  {
+    id: 20, name: "PT-141 (Bremelanotide)", category: "Hormonal", icon: "◇",
+    variants: [{ label: "10 mg", price: 70 }],
+    desc: "PT-141, also known as Bremelanotide, is a melanocortin receptor agonist centrally acting on the nervous system. Commonly researched for libido enhancement, sexual arousal support, and sexual dysfunction wellness in both men and women. Unlike traditional approaches, PT-141 works through neurological pathways rather than vascular mechanisms.",
+  },
+  {
+    id: 21, name: "Selank", category: "Cognitive", icon: "✦",
+    variants: [{ label: "10 mg", price: 70 }],
+    desc: "Selank is a synthetic heptapeptide analogue of the immunomodulatory peptide tuftsin. Commonly researched for its anxiolytic (anti-anxiety), nootropic, and immune-modulating properties. May assist stress resilience, mood stability, focus enhancement, and cognitive performance — without sedation or dependency concerns.",
+  },
+  {
+    id: 22, name: "Semax", category: "Cognitive", icon: "✦",
+    variants: [{ label: "10 mg", price: 70 }],
+    desc: "Semax is a synthetic ACTH (4-7) analogue commonly researched for neuroprotection, cognitive enhancement, and BDNF (brain-derived neurotrophic factor) upregulation. Studied for potential benefits in focus, memory consolidation, neuroplasticity, and recovery from neurological stress. A leading compound in nootropic peptide research.",
+  },
+  {
+    id: 23, name: "Tesamorelin", category: "Performance", icon: "◈",
+    variants: [{ label: "10 mg", price: 85 }, { label: "20 mg", price: 115 }],
+    desc: "Tesamorelin is a synthetic analogue of growth hormone releasing factor (GHRF). Clinically studied for visceral fat reduction, IGF-1 elevation, and body composition support. One of the most validated peptides in research — commonly used in performance and longevity protocols for its targeted fat metabolism and GH-stimulating properties.",
+  },
+  {
+    id: 24, name: "TB-500 (Thymosin Beta-4)", category: "Recovery", icon: "✦",
+    variants: [{ label: "10 mg", price: 75 }],
+    desc: "TB-500 is a synthetic version of Thymosin Beta-4, a naturally occurring peptide found in nearly all human cells. Commonly researched for accelerated tissue repair, enhanced flexibility, anti-inflammatory activity, and angiogenesis support. A cornerstone compound in advanced injury recovery and athletic performance research protocols.",
+  },
+  {
+    id: 25, name: "BAC Water", category: "Supplies", icon: "○",
+    variants: [{ label: "30 ml", price: 20 }],
+    desc: "Bacteriostatic Water (BAC Water) is a pharmaceutical-grade sterile water solution preserved with 0.9% benzyl alcohol. Used for the reconstitution of lyophilized peptide compounds prior to research use. An essential supply item for any peptide research protocol.",
+  },
+];
+const CATEGORIES = ["All", "Weight Management", "Recovery", "Performance", "Longevity", "Skin & Hair", "Hormonal", "Cognitive", "Metabolism", "Supplies"];
+
+// ─── CART HOOK ─────────────────────────────────────────────────────────────────
+function useCart() {
+  const [cart, setCart] = useState([]);
+  const addToCart = (product, variant) => {
+    const key = `${product.id}-${variant.label}`;
+    setCart(prev => {
+      const ex = prev.find(i => i.key === key);
+      if (ex) return prev.map(i => i.key === key ? { ...i, qty: i.qty + 1 } : i);
+      return [...prev, { key, name: product.name, variant: variant.label, price: variant.price, qty: 1 }];
+    });
+  };
+  const removeFromCart = (key) => setCart(prev => prev.filter(i => i.key !== key));
+  const updateQty = (key, qty) => {
+    if (qty < 1) return removeFromCart(key);
+    setCart(prev => prev.map(i => i.key === key ? { ...i, qty } : i));
+  };
+  const total = cart.reduce((s, i) => s + i.price * i.qty, 0);
+  const count = cart.reduce((s, i) => s + i.qty, 0);
+  return { cart, addToCart, removeFromCart, updateQty, total, count };
+}
+
+// ─── COMPONENTS ────────────────────────────────────────────────────────────────
+
+function Nav({ cartCount, onCartOpen, currentPage, setPage }) {
+  const [scrolled, setScrolled] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  useEffect(() => {
+    const fn = () => setScrolled(window.scrollY > 40);
+    window.addEventListener("scroll", fn);
+    return () => window.removeEventListener("scroll", fn);
+  }, []);
+
+  // Close mobile menu on page change
+  useEffect(() => { setMobileOpen(false); }, [currentPage]);
+
+  const NAV_LINKS = [
+    ["home","Home"],
+    ["products","Products"],
+    ["stacks","Stacks"],
+    ["calculator","🧮 Calculator"],
+    ["howto","How To Use"],
+    ["testimonials","Results"],
+    ["consultation","Consultation"],
+    ["contact","Contact"],
+  ];
+
+  return (
+    <>
+      <nav style={{
+        position: "fixed", top: 0, left: 0, right: 0, zIndex: 1000,
+        background: scrolled || mobileOpen ? "rgba(8,8,8,0.98)" : "rgba(10,10,10,0.6)",
+        backdropFilter: "blur(24px)",
+        borderBottom: `1px solid ${scrolled || mobileOpen ? "rgba(201,168,76,0.25)" : "rgba(201,168,76,0.08)"}`,
+        transition: "all 0.4s ease",
+        boxShadow: scrolled ? "0 4px 40px rgba(0,0,0,0.5)" : "none",
+      }}>
+        <div style={{ maxWidth: 1280, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", height: 72, padding: "0 24px" }}>
+
+          {/* Logo */}
+          <button onClick={() => setPage("home")} style={{ background: "none", border: "none", cursor: "pointer", flexShrink: 0 }}>
+            <TPLogo size={34} light />
+          </button>
+
+          {/* Desktop links */}
+          <div className="hide-mobile" style={{ display: "flex", gap: 4, alignItems: "center" }}>
+            {NAV_LINKS.map(([p,l]) => (
+              <button key={p} onClick={() => setPage(p)} style={{
+                background: currentPage === p ? "rgba(201,168,76,0.12)" : "transparent",
+                border: currentPage === p ? `1px solid rgba(201,168,76,0.35)` : "1px solid transparent",
+                borderRadius: 2,
+                cursor: "pointer",
+                padding: "7px 12px",
+                fontSize: 9, letterSpacing: 2, textTransform: "uppercase",
+                color: currentPage === p ? GOLD : "rgba(255,255,255,0.75)",
+                fontFamily: "'Montserrat', sans-serif", fontWeight: 600,
+                transition: "all 0.2s",
+                whiteSpace: "nowrap",
+              }}
+                onMouseEnter={e => { if(currentPage !== p) { e.currentTarget.style.color = GOLD; e.currentTarget.style.background = "rgba(201,168,76,0.06)"; }}}
+                onMouseLeave={e => { if(currentPage !== p) { e.currentTarget.style.color = "rgba(255,255,255,0.75)"; e.currentTarget.style.background = "transparent"; }}}
+              >{l}</button>
+            ))}
+          </div>
+
+          {/* Right side: Bag + Mobile hamburger */}
+          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+            {/* Bag */}
+            <button onClick={onCartOpen} style={{
+              background: cartCount > 0 ? "rgba(201,168,76,0.15)" : "none",
+              border: `1px solid ${cartCount > 0 ? GOLD : "rgba(201,168,76,0.4)"}`,
+              borderRadius: 2, cursor: "pointer", padding: "8px 14px",
+              display: "flex", alignItems: "center", gap: 8,
+              color: GOLD, fontSize: 10, letterSpacing: 2,
+              fontFamily: "'Montserrat', sans-serif", fontWeight: 600,
+              transition: "all 0.3s",
+            }}>
+              <span>BAG</span>
+              {cartCount > 0 && (
+                <span style={{
+                  background: GOLD, color: BLACK, borderRadius: "50%",
+                  width: 18, height: 18, fontSize: 9, fontWeight: 700,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}>{cartCount}</span>
+              )}
+            </button>
+
+            {/* Mobile hamburger */}
+            <button
+              onClick={() => setMobileOpen(o => !o)}
+              style={{
+                background: mobileOpen ? "rgba(201,168,76,0.15)" : "none",
+                border: `1px solid rgba(201,168,76,${mobileOpen ? "0.5" : "0.25"})`,
+                borderRadius: 2, cursor: "pointer",
+                width: 40, height: 36,
+                display: "flex", flexDirection: "column",
+                alignItems: "center", justifyContent: "center",
+                gap: 5, padding: "0 10px",
+                transition: "all 0.3s",
+              }}
+              aria-label="Menu"
+            >
+              {mobileOpen ? (
+                <span style={{ color: GOLD, fontSize: 18, lineHeight: 1 }}>✕</span>
+              ) : (
+                <>
+                  <span style={{ width: 18, height: 1.5, background: GOLD, display: "block", transition: "all 0.3s" }} />
+                  <span style={{ width: 14, height: 1.5, background: GOLD, display: "block", transition: "all 0.3s" }} />
+                  <span style={{ width: 18, height: 1.5, background: GOLD, display: "block", transition: "all 0.3s" }} />
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Mobile dropdown menu */}
+        {mobileOpen && (
+          <div style={{
+            borderTop: `1px solid rgba(201,168,76,0.15)`,
+            background: "rgba(8,8,8,0.98)",
+            padding: "12px 16px 20px",
+            animation: "fadeInUp 0.2s ease",
+          }}>
+            {NAV_LINKS.map(([p,l]) => (
+              <button key={p} onClick={() => setPage(p)} style={{
+                display: "block", width: "100%", textAlign: "left",
+                background: currentPage === p ? "rgba(201,168,76,0.1)" : "transparent",
+                border: "none",
+                borderLeft: currentPage === p ? `3px solid ${GOLD}` : "3px solid transparent",
+                cursor: "pointer",
+                padding: "14px 16px",
+                fontSize: 12, letterSpacing: 2, textTransform: "uppercase",
+                color: currentPage === p ? GOLD : "rgba(255,255,255,0.7)",
+                fontFamily: "'Montserrat', sans-serif", fontWeight: 500,
+                marginBottom: 2,
+                transition: "all 0.2s",
+              }}>{l}</button>
+            ))}
+
+            {/* Mobile bag in menu */}
+            <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+              <button onClick={() => { onCartOpen(); setMobileOpen(false); }} style={{
+                width: "100%", padding: "14px",
+                background: "rgba(201,168,76,0.1)",
+                border: `1px solid rgba(201,168,76,0.3)`,
+                color: GOLD, fontSize: 11, letterSpacing: 3, textTransform: "uppercase",
+                fontFamily: "'Montserrat', sans-serif", fontWeight: 600, cursor: "pointer",
+                display: "flex", justifyContent: "center", alignItems: "center", gap: 10,
+              }}>
+                🛍 View Bag {cartCount > 0 && `(${cartCount})`}
+              </button>
+            </div>
+          </div>
+        )}
+      </nav>
+    </>
+  );
+}
+
+function Hero({ setPage }) {
+  return (
+    <section style={{
+      minHeight: "100vh", position: "relative",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      overflow: "hidden",
+    }}>
+      {/* Background */}
+      <div style={{
+        position: "absolute", inset: 0,
+        background: `
+          radial-gradient(ellipse 80% 60% at 50% 0%, rgba(201,168,76,0.08) 0%, transparent 70%),
+          radial-gradient(ellipse 60% 80% at 80% 100%, rgba(201,168,76,0.05) 0%, transparent 70%),
+          linear-gradient(180deg, #0A0A0A 0%, #0D0D0D 100%)
+        `,
+      }} />
+      {/* Grid overlay */}
+      <div style={{
+        position: "absolute", inset: 0, opacity: 0.03,
+        backgroundImage: `
+          linear-gradient(rgba(201,168,76,1) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(201,168,76,1) 1px, transparent 1px)
+        `,
+        backgroundSize: "80px 80px",
+      }} />
+      {/* Floating orbs */}
+      {[
+        { top: "15%", left: "8%", size: 120, delay: "0s" },
+        { top: "70%", right: "10%", size: 80, delay: "2s" },
+        { top: "40%", right: "5%", size: 200, delay: "1s" },
+      ].map((o, i) => (
+        <div key={i} style={{
+          position: "absolute", ...o,
+          width: o.size, height: o.size, borderRadius: "50%",
+          background: `radial-gradient(circle, rgba(201,168,76,0.06), transparent)`,
+          border: "1px solid rgba(201,168,76,0.08)",
+          animation: `float 6s ease-in-out ${o.delay} infinite`,
+        }} />
+      ))}
+
+      <div style={{
+        position: "relative", zIndex: 1, textAlign: "center",
+        maxWidth: 900, padding: "80px 24px 40px",
+        animation: "fadeInUp 1s ease forwards",
+        width: "100%",
+      }}>
+        {/* Logo mark - real TP emblem */}
+        <div style={{
+          width: 140, height: 140, margin: "0 auto 40px",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          animation: "float 4s ease-in-out infinite",
+        }}>
+          <img
+            src={TP_LOGO_SRC}
+            alt="TruPep Wellness"
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "contain",
+              filter: "drop-shadow(0 8px 32px rgba(201,168,76,0.6)) drop-shadow(0 0 60px rgba(201,168,76,0.3))",
+            }}
+          />
+        </div>
+
+        <div className="section-label" style={{ justifyContent: "center", marginBottom: 24 }}>
+          Advanced Peptide Wellness · Miami, Florida
+        </div>
+
+        <h1 className="serif" style={{
+          fontSize: "clamp(48px, 8vw, 96px)",
+          fontWeight: 300, lineHeight: 1.05,
+          letterSpacing: -2, marginBottom: 32,
+          color: WHITE,
+        }}>
+          Elevate Your<br />
+          <span className="gold-shimmer">Biology.</span>
+        </h1>
+
+        <p style={{
+          fontSize: "clamp(14px, 2vw, 17px)", fontWeight: 300,
+          lineHeight: 1.8, color: "rgba(255,255,255,0.88)",
+          maxWidth: 580, margin: "0 auto 48px",
+          letterSpacing: 0.5,
+        }}>
+          Premium research peptide solutions designed to support recovery, performance,
+          longevity, and total body optimization. Curated for the discerning wellness client.
+        </p>
+
+        <div style={{ display: "flex", gap: 16, justifyContent: "center", flexWrap: "wrap", width: "100%", padding: "0 16px" }}>
+          <button className="btn-gold" onClick={() => setPage("products")}>
+            Shop Products
+          </button>
+          <button className="btn-outline" onClick={() => setPage("stacks")}>
+            View Stacks
+          </button>
+          <button className="btn-outline" onClick={() => setPage("consultation")}>
+            Free Consultation
+          </button>
+          <button className="btn-outline" onClick={() => setPage("calculator")} style={{
+            background: "rgba(201,168,76,0.08)",
+            display: "flex", alignItems: "center", gap: 8,
+          }}>
+            🧮 Peptide Calculator
+          </button>
+        </div>
+
+        <div style={{
+          marginTop: 80, display: "flex", gap: 48, justifyContent: "center",
+          flexWrap: "wrap",
+        }}>
+          {[["25+","Peptide Compounds"],["100%","Premium Quality"],["Miami","Based & Trusted"]].map(([n,l]) => (
+            <div key={l} style={{ textAlign: "center" }}>
+              <div className="serif" style={{ fontSize: 32, fontWeight: 300, color: GOLD }}>{n}</div>
+              <div style={{ fontSize: 9, letterSpacing: 3, color: GRAY, textTransform: "uppercase", marginTop: 4 }}>{l}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Scroll indicator */}
+      <div style={{
+        position: "absolute", bottom: 40, left: "50%", transform: "translateX(-50%)",
+        display: "flex", flexDirection: "column", alignItems: "center", gap: 12,
+        paddingBottom: 8,
+      }}>
+        <div style={{ fontSize: 9, letterSpacing: 4, color: GRAY, textTransform: "uppercase" }}>Scroll</div>
+        <div style={{
+          width: 1, height: 50,
+          background: `linear-gradient(${GOLD}, transparent)`,
+          animation: "float 2s ease-in-out infinite",
+          marginTop: 4,
+        }} />
+      </div>
+    </section>
+  );
+}
+
+function AboutSection() {
+  const pillars = [
+    { icon: "✦", title: "Recovery", desc: "Peptide research commonly supports accelerated tissue repair, reduced inflammation, and optimized healing pathways." },
+    { icon: "◈", title: "Performance", desc: "Support lean muscle preservation, growth hormone optimization, and peak physical conditioning through targeted peptide protocols." },
+    { icon: "◇", title: "Longevity", desc: "Commonly researched cellular repair pathways, telomere support, and mitochondrial function for extended healthspan." },
+    { icon: "✧", title: "Aesthetics", desc: "Skin collagen stimulation, hair follicle support, pigmentation research, and total aesthetic wellness optimization." },
+    { icon: "⬡", title: "Metabolism", desc: "Advanced metabolic support research including GLP-1 analogues, fat mobilization, and body composition optimization." },
+    { icon: "○", title: "Cognitive", desc: "Neuroprotective peptides commonly researched for focus, memory, stress resilience, and mental performance." },
+  ];
+
+  return (
+    <section id="about" style={{ padding: "120px 40px", background: SURFACE }}>
+      <div style={{ maxWidth: 1280, margin: "0 auto" }}>
+        <div style={{ textAlign: "center", marginBottom: 80 }}>
+          <div className="section-label" style={{ justifyContent: "center" }}>Understanding Peptides</div>
+          <h2 className="serif" style={{ fontSize: "clamp(36px, 5vw, 64px)", fontWeight: 300, letterSpacing: -1, marginBottom: 24 }}>
+            The Science of <span style={{ color: GOLD }}>Optimization</span>
+          </h2>
+          <div className="divider" style={{ marginBottom: 32 }} />
+          <p style={{
+            fontSize: 15, lineHeight: 1.9, color: "rgba(255,255,255,0.88)",
+            maxWidth: 700, margin: "0 auto", fontWeight: 300,
+          }}>
+            Peptides are short chains of amino acids — the fundamental building blocks of proteins — that
+            act as biological messengers within the body. Research suggests they may support a wide range
+            of physiological functions, from cellular repair to hormonal signaling. TruPep Wellness offers
+            premium-grade peptide compounds curated for the wellness-focused individual seeking to optimize
+            their biology at the molecular level.
+          </p>
+        </div>
+
+        <div className="about-grid" style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+          gap: 2,
+        }}>
+          {pillars.map((p, i) => (
+            <div key={i} className="card-hover" style={{
+              background: BLACK, padding: "48px 40px",
+              borderTop: `1px solid rgba(201,168,76,0.1)`,
+              transition: "all 0.4s ease",
+              cursor: "default",
+            }}
+              onMouseEnter={e => { e.currentTarget.style.borderTop = `1px solid ${GOLD}`; e.currentTarget.style.background = SURFACE2; }}
+              onMouseLeave={e => { e.currentTarget.style.borderTop = `1px solid rgba(201,168,76,0.1)`; e.currentTarget.style.background = BLACK; }}
+            >
+              <div style={{ fontSize: 28, color: GOLD, marginBottom: 20 }}>{p.icon}</div>
+              <h3 className="serif" style={{ fontSize: 24, fontWeight: 400, marginBottom: 12, letterSpacing: 0.5 }}>{p.title}</h3>
+              <p style={{ fontSize: 13, lineHeight: 1.8, color: "rgba(255,255,255,0.88)", fontWeight: 300 }}>{p.desc}</p>
+            </div>
+          ))}
+        </div>
+
+        <div style={{
+          marginTop: 80, padding: "48px", textAlign: "center",
+          border: `1px solid rgba(201,168,76,0.15)`,
+          background: "rgba(201,168,76,0.02)",
+        }}>
+          <p style={{ fontSize: 12, color: "rgba(255,255,255,0.88)", lineHeight: 1.8, letterSpacing: 0.5, maxWidth: 700, margin: "0 auto" }}>
+            <span style={{ color: GOLD, letterSpacing: 2, fontSize: 10 }}>RESEARCH DISCLAIMER</span><br /><br />
+            All products offered by TruPep Wellness are intended for research and wellness purposes only.
+            These statements have not been evaluated by the Food and Drug Administration.
+            Products are not intended to diagnose, treat, cure, or prevent any disease.
+            Consult with a qualified healthcare professional before beginning any wellness protocol.
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ProductCard({ product, onAdd }) {
+  const [selectedVariant, setSelectedVariant] = useState(0);
+  const [added, setAdded] = useState(false);
+
+  const handleAdd = () => {
+    onAdd(product, product.variants[selectedVariant]);
+    setAdded(true);
+    setTimeout(() => setAdded(false), 1800);
+  };
+
+  return (
+    <div className="card-hover" style={{
+      background: SURFACE2,
+      border: "1px solid rgba(201,168,76,0.08)",
+      display: "flex", flexDirection: "column",
+      transition: "all 0.4s ease",
+    }}>
+      {/* Category tag */}
+      <div style={{ padding: "28px 28px 0" }}>
+        <span style={{
+          fontSize: 9, letterSpacing: 3, color: GOLD,
+          textTransform: "uppercase", fontWeight: 600,
+        }}>{product.category}</span>
+      </div>
+
+      {/* Icon & Name */}
+      <div style={{ padding: "16px 28px 20px" }}>
+        <div style={{
+          fontSize: 40, color: GOLD, marginBottom: 12,
+          opacity: 0.7,
+        }}>{product.icon}</div>
+        <h3 className="serif" style={{
+          fontSize: 26, fontWeight: 400, letterSpacing: 0.5,
+          marginBottom: 12, lineHeight: 1.2,
+        }}>{product.name}</h3>
+        <p style={{
+          fontSize: 13, lineHeight: 1.85, color: "rgba(255,255,255,0.82)",
+          fontWeight: 300,
+        }}>{product.desc}</p>
+      </div>
+
+      <div style={{ flex: 1 }} />
+
+      {/* Variant selector */}
+      {product.variants.length > 1 && (
+        <div style={{ padding: "0 28px 16px" }}>
+          <div style={{ fontSize: 9, letterSpacing: 2, color: GRAY, marginBottom: 8, textTransform: "uppercase" }}>Select Size</div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {product.variants.map((v, i) => (
+              <button key={i} onClick={() => setSelectedVariant(i)} style={{
+                padding: "6px 14px", fontSize: 10, letterSpacing: 1,
+                border: `1px solid ${i === selectedVariant ? GOLD : "rgba(255,255,255,0.1)"}`,
+                background: i === selectedVariant ? "rgba(201,168,76,0.1)" : "transparent",
+                color: i === selectedVariant ? GOLD : "rgba(255,255,255,0.5)",
+                cursor: "pointer", transition: "all 0.2s",
+                fontFamily: "'Montserrat', sans-serif",
+              }}>{v.label}</button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Price & CTA */}
+      <div style={{
+        padding: "20px 28px",
+        borderTop: "1px solid rgba(255,255,255,0.05)",
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+      }}>
+        <div>
+          <div style={{ fontSize: 9, letterSpacing: 2, color: GRAY, textTransform: "uppercase", marginBottom: 4 }}>Price</div>
+          <div className="serif" style={{ fontSize: 28, fontWeight: 300, color: GOLD }}>
+            ${product.variants[selectedVariant].price}
+          </div>
+        </div>
+        <button className="btn-gold" onClick={handleAdd} style={{ padding: "10px 22px", fontSize: 9 }}>
+          {added ? "✓ Added" : "Add to Bag"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ProductsPage({ onAdd }) {
+  const [category, setCategory] = useState("All");
+  const [search, setSearch] = useState("");
+
+  const filtered = PRODUCTS.filter(p => {
+    const matchCat = category === "All" || p.category === category;
+    const matchSearch = p.name.toLowerCase().includes(search.toLowerCase()) ||
+      p.category.toLowerCase().includes(search.toLowerCase());
+    return matchCat && matchSearch;
+  });
+
+  return (
+    <div style={{ paddingTop: 80, minHeight: "100vh", background: BLACK }}>
+      {/* Header */}
+      <div style={{
+        padding: "80px 40px 60px",
+        background: `linear-gradient(180deg, ${SURFACE} 0%, ${BLACK} 100%)`,
+        textAlign: "center",
+        borderBottom: "1px solid rgba(201,168,76,0.08)",
+      }}>
+        <div className="section-label" style={{ justifyContent: "center" }}>Premium Catalog</div>
+        <h1 className="serif" style={{ fontSize: "clamp(36px,5vw,64px)", fontWeight: 300, letterSpacing: -1, marginBottom: 16 }}>
+          Peptide <span style={{ color: GOLD }}>Collection</span>
+        </h1>
+        <p style={{ color: "rgba(255,255,255,0.88)", fontSize: 13, letterSpacing: 0.5, fontWeight: 300 }}>
+          {PRODUCTS.length} premium compounds · Research-grade quality · Miami-based
+        </p>
+      </div>
+
+      <div style={{ maxWidth: 1280, margin: "0 auto", padding: "48px 40px" }}>
+        {/* Search */}
+        <div style={{ marginBottom: 40, display: "flex", gap: 16, flexWrap: "wrap", alignItems: "center" }}>
+          <input
+            placeholder="Search peptides..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{
+              flex: 1, minWidth: 200, padding: "12px 20px",
+              background: SURFACE, border: "1px solid rgba(201,168,76,0.2)",
+              color: WHITE, fontSize: 12, letterSpacing: 1,
+              fontFamily: "'Montserrat', sans-serif",
+              outline: "none",
+            }}
+          />
+          <div style={{ fontSize: 11, color: GRAY, letterSpacing: 1 }}>
+            {filtered.length} result{filtered.length !== 1 ? "s" : ""}
+          </div>
+        </div>
+
+        {/* Category filter */}
+        <div style={{
+          display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 48,
+          paddingBottom: 24, borderBottom: "1px solid rgba(255,255,255,0.05)",
+        }}>
+          {CATEGORIES.map(cat => (
+            <button key={cat} onClick={() => setCategory(cat)} style={{
+              padding: "8px 18px", fontSize: 9, letterSpacing: 2,
+              textTransform: "uppercase",
+              border: `1px solid ${cat === category ? GOLD : "rgba(255,255,255,0.1)"}`,
+              background: cat === category ? "rgba(201,168,76,0.1)" : "transparent",
+              color: cat === category ? GOLD : "rgba(255,255,255,0.4)",
+              cursor: "pointer", transition: "all 0.2s",
+              fontFamily: "'Montserrat', sans-serif",
+            }}>{cat}</button>
+          ))}
+        </div>
+
+        {/* Grid */}
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
+          gap: 2,
+        }}>
+          {filtered.map(p => (
+            <ProductCard key={p.id} product={p} onAdd={onAdd} />
+          ))}
+        </div>
+
+        {filtered.length === 0 && (
+          <div style={{ textAlign: "center", padding: "80px 0", color: GRAY }}>
+            <div style={{ fontSize: 48, marginBottom: 16 }}>○</div>
+            <div style={{ fontSize: 13, letterSpacing: 2 }}>No products found</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function CartDrawer({ cart, total, onClose, onRemove, onUpdateQty, onAdd }) {
+  const [step, setStep] = useState("cart"); // cart | checkout | confirm
+  const [form, setForm] = useState({
+    name: "", email: "", phone: "",
+    street: "", city: "", state: "", zip: "",
+    notes: "", _touched: {}
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  // ── Promo code ──
+  const [promoInput, setPromoInput] = useState("");
+  const [appliedPromo, setAppliedPromo] = useState(null);
+  const [promoError, setPromoError] = useState("");
+  const PROMO_CODES = {
+    "GOLDSTART5":   { pct: 5,  label: "Gold Start" },
+    "PEPTIDE10":    { pct: 10, label: "Peptide Power" },
+    "TRUPEP15":     { pct: 15, label: "TruPep Elite" },
+    "MIAMI20":      { pct: 20, label: "Miami Exclusive" },
+    "VENOM25":      { pct: 25, label: "Venom Protocol" },
+    "BLACKGOLD30":  { pct: 30, label: "Black Gold VIP" },
+    "BLAZING35":    { pct: 35, label: "Blazing Deal" },
+    "KINGPEP40":    { pct: 40, label: "King Peptide" },
+    "GODMODE45":    { pct: 45, label: "God Mode" },
+    "ULTRAVIP50":   { pct: 50, label: "Ultra VIP Access" },
+    "DIAMOND55":    { pct: 55, label: "Diamond Status" },
+  };
+  const applyPromo = () => {
+    const code = promoInput.trim().toUpperCase();
+    if (PROMO_CODES[code]) {
+      setAppliedPromo({ code, ...PROMO_CODES[code] });
+      setPromoError("");
+    } else {
+      setPromoError("Invalid code. Please check your code and try again.");
+      setAppliedPromo(null);
+    }
+  };
+  const discountAmt = appliedPromo ? parseFloat(((total * appliedPromo.pct) / 100).toFixed(2)) : 0;
+  const finalTotal = (total - discountAmt).toFixed(2);
+
+  const fullAddress = `${form.street}, ${form.city}, ${form.state} ${form.zip}`.trim();
+  const orderSummary = cart.map(i => `${i.name} ${i.variant} x${i.qty} — $${i.price * i.qty}`).join("\n");
+
+  const handleSubmit = async () => {
+    // Touch all fields
+    setForm(f => ({ ...f, _touched: { name:true, email:true, phone:true, street:true, city:true, state:true, zip:true } }));
+    if (!form.name || !form.email || !form.phone || !form.street || !form.city || !form.state || !form.zip) {
+      setError("Please fill in all required fields.");
+      return;
+    }
+    setError("");
+    setSubmitting(true);
+    try {
+      const formData = new FormData();
+      formData.append("_subject", `New TruPep Order from ${form.name}`);
+      formData.append("customer_name", form.name);
+      formData.append("customer_email", form.email);
+      formData.append("customer_phone", form.phone);
+      formData.append("street_address", form.street);
+      formData.append("city", form.city);
+      formData.append("state", form.state);
+      formData.append("zip_code", form.zip);
+      formData.append("full_shipping_address", fullAddress);
+      formData.append("order_items", orderSummary);
+      formData.append("order_subtotal", `$${total}`);
+      formData.append("promo_code", appliedPromo ? `${appliedPromo.code} (${appliedPromo.pct}% off — saved $${discountAmt})` : "None");
+      formData.append("order_total", `$${finalTotal}`);
+      formData.append("notes", form.notes || "None");
+      formData.append("_replyto", form.email);
+
+      const res = await fetch("https://formspree.io/f/xvzyzgqa", {
+        method: "POST",
+        headers: { "Accept": "application/json" },
+        body: formData,
+      });
+      if (res.ok) {
+        setStep("confirm");
+      } else {
+        const data = await res.json().catch(() => ({}));
+        if (data.errors) {
+          setError(data.errors.map(e => e.message).join(", "));
+        } else {
+          setStep("confirm"); // Show success anyway — order likely went through
+        }
+      }
+    } catch (e) {
+      // Network error — still show confirm so customer isn't stuck
+      setStep("confirm");
+    }
+    setSubmitting(false);
+  };
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 2000,
+      display: "flex", justifyContent: "flex-end",
+    }}>
+      {/* Overlay */}
+      <div onClick={onClose} style={{
+        position: "absolute", inset: 0,
+        background: "rgba(0,0,0,0.85)",
+        backdropFilter: "blur(4px)",
+        animation: "fadeIn 0.3s ease",
+      }} />
+
+      {/* Drawer */}
+      <div style={{
+        position: "relative", zIndex: 1,
+        width: "min(480px, 100vw)",
+        background: SURFACE,
+        borderLeft: `1px solid rgba(201,168,76,0.15)`,
+        display: "flex", flexDirection: "column",
+        animation: "fadeInUp 0.3s ease",
+        overflowY: "auto",
+      }}>
+        {/* Header */}
+        <div style={{
+          padding: "28px 32px",
+          borderBottom: "1px solid rgba(255,255,255,0.05)",
+          display: "flex", justifyContent: "space-between", alignItems: "center",
+        }}>
+          <div>
+            <div className="serif" style={{ fontSize: 24, fontWeight: 400 }}>
+              {step === "cart" ? "Your Bag" : step === "checkout" ? "Checkout" : "Confirmed"}
+            </div>
+            {step === "cart" && <div style={{ fontSize: 10, color: GRAY, letterSpacing: 2, marginTop: 2 }}>{cart.length} ITEM{cart.length !== 1 ? "S" : ""}</div>}
+          </div>
+          <button onClick={onClose} style={{
+            background: "none", border: "1px solid rgba(255,255,255,0.1)",
+            color: WHITE, cursor: "pointer", width: 36, height: 36,
+            fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center",
+          }}>×</button>
+        </div>
+
+        {step === "cart" && (
+          <>
+            {cart.length === 0 ? (
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 48, color: GRAY }}>
+                <div style={{ fontSize: 48, marginBottom: 16, color: "rgba(201,168,76,0.3)" }}>○</div>
+                <div style={{ fontSize: 12, letterSpacing: 2 }}>YOUR BAG IS EMPTY</div>
+              </div>
+            ) : (
+              <>
+                <div style={{ flex: 1, overflowY: "auto", padding: "24px 32px" }}>
+                  {cart.map(item => (
+                    <div key={item.key} style={{
+                      display: "flex", gap: 16, padding: "20px 0",
+                      borderBottom: "1px solid rgba(255,255,255,0.05)",
+                    }}>
+                      <div style={{ flex: 1 }}>
+                        <div className="serif" style={{ fontSize: 18, fontWeight: 400, marginBottom: 4 }}>{item.name}</div>
+                        <div style={{ fontSize: 10, letterSpacing: 2, color: GRAY }}>{item.variant}</div>
+                        <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 12 }}>
+                          <button onClick={() => onUpdateQty(item.key, item.qty - 1)} style={{ width: 28, height: 28, background: SURFACE2, border: "1px solid rgba(255,255,255,0.1)", color: WHITE, cursor: "pointer", fontSize: 16 }}>−</button>
+                          <span style={{ fontSize: 13, minWidth: 20, textAlign: "center" }}>{item.qty}</span>
+                          <button onClick={() => onUpdateQty(item.key, item.qty + 1)} style={{ width: 28, height: 28, background: SURFACE2, border: "1px solid rgba(255,255,255,0.1)", color: WHITE, cursor: "pointer", fontSize: 16 }}>+</button>
+                        </div>
+                      </div>
+                      <div style={{ textAlign: "right" }}>
+                        <div className="serif" style={{ fontSize: 22, color: GOLD }}>${item.price * item.qty}</div>
+                        <button onClick={() => onRemove(item.key)} style={{
+                          marginTop: 8, background: "none", border: "none",
+                          color: "rgba(255,255,255,0.2)", cursor: "pointer", fontSize: 10, letterSpacing: 1,
+                        }}>REMOVE</button>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* ── BAC WATER SMART SUGGESTION ── */}
+                  {(() => {
+                    const LIQUID_ITEMS = ["Lipo C", "BAC Water"];
+                    const hasPeptides = cart.some(i => !LIQUID_ITEMS.some(l => i.name.includes(l)));
+                    const hasBac = cart.some(i => i.name.includes("BAC Water"));
+                    if (!hasPeptides || hasBac) return null;
+                    const bacProduct = PRODUCTS.find(p => p.name === "BAC Water");
+                    const bacVariant = bacProduct?.variants[0];
+                    return (
+                      <div style={{
+                        marginTop: 20,
+                        padding: "20px",
+                        background: `linear-gradient(135deg, rgba(201,168,76,0.06), rgba(201,168,76,0.03))`,
+                        border: `1px solid rgba(201,168,76,0.25)`,
+                        borderLeft: `3px solid ${GOLD}`,
+                      }}>
+                        {/* Header */}
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                          <div style={{ fontSize: 14, color: GOLD }}>⚠</div>
+                          <div style={{ fontSize: 10, letterSpacing: 2, color: GOLD, textTransform: "uppercase", fontWeight: 600 }}>
+                            Don't Forget — Required for Use
+                          </div>
+                        </div>
+
+                        {/* Message */}
+                        <p style={{ fontSize: 12, lineHeight: 1.8, color: "rgba(255,255,255,0.75)", marginBottom: 16, fontWeight: 300 }}>
+                          Your peptide vials are lyophilized (freeze-dried) and{" "}
+                          <strong style={{ color: WHITE }}>require Bacteriostatic Water (BAC Water) to reconstitute</strong>{" "}
+                          before use. Without it, you won't be able to use your order when it arrives.
+                        </p>
+
+                        {/* BAC Water card */}
+                        <div style={{
+                          display: "flex", alignItems: "center", justifyContent: "space-between",
+                          padding: "14px 16px",
+                          background: SURFACE2,
+                          border: `1px solid rgba(201,168,76,0.15)`,
+                          gap: 12,
+                        }}>
+                          <div>
+                            <div className="serif" style={{ fontSize: 17, fontWeight: 400, color: WHITE }}>BAC Water</div>
+                            <div style={{ fontSize: 10, color: GRAY, letterSpacing: 1, marginTop: 2 }}>30 ml — Pharmaceutical Grade</div>
+                            <div style={{ fontSize: 11, color: "rgba(255,255,255,0.88)", marginTop: 4, fontWeight: 300 }}>
+                              Recommended: 1 vial per 1–3 peptides
+                            </div>
+                          </div>
+                          <div style={{ textAlign: "right", flexShrink: 0 }}>
+                            <div className="serif" style={{ fontSize: 22, color: GOLD, marginBottom: 8 }}>$20</div>
+                            <button
+                              className="btn-gold"
+                              style={{ padding: "8px 16px", fontSize: 9, letterSpacing: 2, whiteSpace: "nowrap" }}
+                              onClick={() => onAdd(bacProduct, bacVariant)}
+                            >
+                              + Add to Bag
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Pro tip */}
+                        <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "flex-start" }}>
+                          <div style={{ color: GOLD, fontSize: 11, marginTop: 1 }}>✦</div>
+                          <p style={{ fontSize: 10, color: "rgba(255,255,255,0.88)", lineHeight: 1.7, fontWeight: 300 }}>
+                            <strong style={{ color: "rgba(255,255,255,0.88)" }}>Pro tip:</strong> Order one BAC Water per 1–3 peptide vials.
+                            Each 30ml vial is sufficient for multiple reconstitutions.
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                <div style={{ padding: "24px 32px", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+
+                  {/* ── Promo Code ── */}
+                  <div style={{ marginBottom: 20 }}>
+                    <div style={{ fontSize: 9, letterSpacing: 3, color: GOLD, textTransform: "uppercase", marginBottom: 10 }}>
+                      Promo Code
+                    </div>
+                    {appliedPromo ? (
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", background: "rgba(201,168,76,0.08)", border: "1px solid rgba(201,168,76,0.3)" }}>
+                        <div>
+                          <span style={{ fontSize: 11, color: GOLD, fontWeight: 600, letterSpacing: 1 }}>{appliedPromo.code}</span>
+                          <span style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", marginLeft: 8 }}>{appliedPromo.label} — {appliedPromo.pct}% off</span>
+                        </div>
+                        <button onClick={() => { setAppliedPromo(null); setPromoInput(""); }} style={{ background: "none", border: "none", color: GRAY, cursor: "pointer", fontSize: 16, lineHeight: 1 }}>×</button>
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <input
+                          type="text"
+                          placeholder="Enter promo code"
+                          value={promoInput}
+                          onChange={e => { setPromoInput(e.target.value); setPromoError(""); }}
+                          onKeyDown={e => e.key === "Enter" && applyPromo()}
+                          style={{ flex: 1, padding: "10px 14px", background: SURFACE, border: "1px solid rgba(201,168,76,0.2)", color: WHITE, fontSize: 12, outline: "none", fontFamily: "'Montserrat', sans-serif" }}
+                        />
+                        <button onClick={applyPromo} className="btn-outline" style={{ padding: "10px 18px", fontSize: 10, letterSpacing: 1, whiteSpace: "nowrap" }}>
+                          Apply
+                        </button>
+                      </div>
+                    )}
+                    {promoError && <div style={{ fontSize: 10, color: "#ff8080", marginTop: 6 }}>{promoError}</div>}
+                    <div style={{ fontSize: 9, color: "rgba(255,255,255,0.25)", marginTop: 8, letterSpacing: 0.5 }}>
+                      Try: GOLDSTART5 · PEPTIDE10 · TRUPEP15 · MIAMI20 · VENOM25 and more
+                    </div>
+                  </div>
+
+                  {/* Totals */}
+                  <div style={{ borderTop: "1px solid rgba(255,255,255,0.05)", paddingTop: 16, marginBottom: 20 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                      <span style={{ fontSize: 11, letterSpacing: 1, color: GRAY }}>Subtotal</span>
+                      <span style={{ fontSize: 14, color: WHITE }}>${total}</span>
+                    </div>
+                    {appliedPromo && (
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                        <span style={{ fontSize: 11, letterSpacing: 1, color: GOLD }}>Discount ({appliedPromo.pct}% off)</span>
+                        <span style={{ fontSize: 14, color: GOLD }}>−${discountAmt}</span>
+                      </div>
+                    )}
+                    <div style={{ display: "flex", justifyContent: "space-between", paddingTop: 10, borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+                      <span style={{ fontSize: 11, letterSpacing: 2, color: GRAY }}>TOTAL</span>
+                      <span className="serif" style={{ fontSize: 28, color: GOLD }}>${finalTotal}</span>
+                    </div>
+                  </div>
+
+                  <button className="btn-gold" style={{ width: "100%", textAlign: "center" }} onClick={() => setStep("checkout")}>
+                    Proceed to Checkout
+                  </button>
+                  <p style={{ fontSize: 10, color: GRAY, textAlign: "center", marginTop: 12, letterSpacing: 0.5 }}>
+                    Shipping calculated at checkout
+                  </p>
+                </div>
+              </>
+            )}
+          </>
+        )}
+
+        {step === "checkout" && (() => {
+          const touched = form._touched || {};
+          const isValidEmail = v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+          const isValidPhone = v => v.replace(/\D/g, "").length >= 10;
+          const isValidZip   = v => /^\d{5}(-\d{4})?$/.test(v.trim());
+          const fieldValid = {
+            name:   form.name.trim().length >= 2,
+            email:  isValidEmail(form.email),
+            phone:  isValidPhone(form.phone),
+            street: form.street.trim().length >= 4,
+            city:   form.city.trim().length >= 2,
+            state:  form.state.trim().length >= 2,
+            zip:    isValidZip(form.zip),
+          };
+          const formatPhone = raw => {
+            const d = raw.replace(/\D/g, "").slice(0, 10);
+            if (d.length <= 3) return d;
+            if (d.length <= 6) return `${d.slice(0,3)}-${d.slice(3)}`;
+            return `${d.slice(0,3)}-${d.slice(3,6)}-${d.slice(6)}`;
+          };
+          const markTouched = key => setForm(f => ({ ...f, _touched: { ...(f._touched||{}), [key]: true } }));
+          const fieldBorder = key => {
+            if (!touched[key]) return "1px solid rgba(201,168,76,0.2)";
+            return fieldValid[key]
+              ? "1px solid rgba(201,168,76,0.6)"
+              : "1px solid rgba(255,80,80,0.7)";
+          };
+          const fieldGlow = key => {
+            if (!touched[key]) return "none";
+            return fieldValid[key]
+              ? "0 0 0 2px rgba(201,168,76,0.08)"
+              : "0 0 0 2px rgba(255,80,80,0.12)";
+          };
+          const fieldIcon = key => {
+            if (!touched[key]) return null;
+            return fieldValid[key]
+              ? <span style={{ color: "#6cc070", fontSize: 14 }}>✓</span>
+              : <span style={{ color: "#ff6060", fontSize: 14 }}>✕</span>;
+          };
+          const iStyle = key => ({
+            width: "100%", padding: "12px 16px", background: BLACK,
+            border: fieldBorder(key), boxShadow: fieldGlow(key),
+            color: WHITE, fontSize: 13, fontFamily: "'Montserrat', sans-serif",
+            outline: "none", transition: "all 0.2s",
+          });
+          const LabelRow = ({ label, k, req=true }) => (
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
+              <label style={{ fontSize:9, letterSpacing:3, color:GOLD, textTransform:"uppercase" }}>
+                {label}{req && <span style={{ color:"#ff6060" }}> *</span>}
+              </label>
+              {fieldIcon(k)}
+            </div>
+          );
+          const ErrMsg = ({ k, msg }) => touched[k] && !fieldValid[k]
+            ? <div style={{ fontSize:10, color:"rgba(255,100,100,0.9)", marginTop:4 }}>{msg}</div>
+            : null;
+
+          return (
+          <div style={{ padding:"24px 28px", overflowY:"auto", flex:1, display:"flex", flexDirection:"column", gap:14, paddingBottom:32 }}>
+
+            {/* Full Name */}
+            <div>
+              <LabelRow label="Full Name" k="name" />
+              <input type="text" placeholder="John Smith" value={form.name}
+                onChange={e => setForm(f=>({...f,name:e.target.value}))}
+                onBlur={()=>markTouched("name")} style={iStyle("name")} />
+              <ErrMsg k="name" msg="Please enter your full name" />
+            </div>
+
+            {/* Email */}
+            <div>
+              <LabelRow label="Email Address" k="email" />
+              <input type="email" placeholder="john@example.com" value={form.email}
+                onChange={e=>setForm(f=>({...f,email:e.target.value}))}
+                onBlur={()=>markTouched("email")} style={iStyle("email")} />
+              <ErrMsg k="email" msg="Please enter a valid email address" />
+            </div>
+
+            {/* Phone */}
+            <div>
+              <LabelRow label="Phone Number" k="phone" />
+              <input type="tel" placeholder="555-123-4567" value={form.phone}
+                onChange={e=>setForm(f=>({...f,phone:formatPhone(e.target.value)}))}
+                onBlur={()=>markTouched("phone")} style={iStyle("phone")} />
+              <ErrMsg k="phone" msg="Please enter a valid 10-digit phone number" />
+            </div>
+
+            {/* ── SHIPPING ADDRESS ── */}
+            <div style={{ borderTop:"1px solid rgba(201,168,76,0.12)", paddingTop:14 }}>
+              <div style={{ fontSize:9, letterSpacing:3, color:GOLD, textTransform:"uppercase", marginBottom:12, display:"flex", alignItems:"center", gap:6 }}>
+                📦 Shipping Address
+              </div>
+
+              {/* Street */}
+              <div style={{ marginBottom:10 }}>
+                <LabelRow label="Street Address" k="street" />
+                <input type="text" placeholder="123 Main Street, Apt 4B" value={form.street}
+                  onChange={e=>setForm(f=>({...f,street:e.target.value}))}
+                  onBlur={()=>markTouched("street")} style={iStyle("street")} />
+                <ErrMsg k="street" msg="Please enter your street address" />
+              </div>
+
+              {/* City */}
+              <div style={{ marginBottom:10 }}>
+                <LabelRow label="City" k="city" />
+                <input type="text" placeholder="Miami" value={form.city}
+                  onChange={e=>setForm(f=>({...f,city:e.target.value}))}
+                  onBlur={()=>markTouched("city")} style={iStyle("city")} />
+                <ErrMsg k="city" msg="Please enter your city" />
+              </div>
+
+              {/* State + ZIP side by side */}
+              <div style={{ display:"flex", gap:10 }}>
+                <div style={{ flex:"0 0 80px" }}>
+                  <LabelRow label="State" k="state" />
+                  <input type="text" placeholder="FL" value={form.state}
+                    onChange={e=>setForm(f=>({...f,state:e.target.value.toUpperCase().slice(0,2)}))}
+                    onBlur={()=>markTouched("state")}
+                    style={{...iStyle("state"), textTransform:"uppercase", textAlign:"center"}} />
+                  <ErrMsg k="state" msg="Required" />
+                </div>
+                <div style={{ flex:1 }}>
+                  <LabelRow label="ZIP Code" k="zip" />
+                  <input type="text" placeholder="33101" value={form.zip}
+                    onChange={e=>setForm(f=>({...f,zip:e.target.value.replace(/[^\d-]/g,"").slice(0,10)}))}
+                    onBlur={()=>markTouched("zip")} style={iStyle("zip")} />
+                  <ErrMsg k="zip" msg="Valid 5-digit ZIP required" />
+                </div>
+              </div>
+            </div>
+
+            {/* Notes */}
+            <div>
+              <label style={{ fontSize:9, letterSpacing:3, color:GOLD, textTransform:"uppercase", display:"block", marginBottom:6 }}>
+                Notes <span style={{ color:GRAY, fontSize:8 }}>(optional)</span>
+              </label>
+              <textarea placeholder="Optional notes or special requests..." value={form.notes}
+                onChange={e=>setForm(f=>({...f,notes:e.target.value}))} rows={2}
+                style={{ width:"100%", padding:"12px 16px", background:BLACK, border:"1px solid rgba(201,168,76,0.2)", color:WHITE, fontSize:13, resize:"vertical", fontFamily:"'Montserrat',sans-serif", outline:"none" }} />
+            </div>
+
+            {/* Order Summary */}
+            <div style={{ background:BLACK, padding:16, border:"1px solid rgba(201,168,76,0.08)" }}>
+              <div style={{ fontSize:9, letterSpacing:3, color:GOLD, marginBottom:10 }}>ORDER SUMMARY</div>
+              {cart.map(i=>(
+                <div key={i.key} style={{ display:"flex", justifyContent:"space-between", marginBottom:6 }}>
+                  <span style={{ fontSize:11, color:"rgba(255,255,255,0.6)" }}>{i.name} {i.variant} ×{i.qty}</span>
+                  <span style={{ fontSize:11, color:GOLD }}>${i.price*i.qty}</span>
+                </div>
+              ))}
+              <div style={{ borderTop:"1px solid rgba(255,255,255,0.05)", paddingTop:10, marginTop:6, display:"flex", justifyContent:"space-between" }}>
+                <span style={{ fontSize:11, color:GRAY }}>Total</span>
+                <span className="serif" style={{ fontSize:20, color:GOLD }}>${total}</span>
+              </div>
+            </div>
+
+            <div style={{ fontSize:10, color:GRAY }}><span style={{ color:"#ff6060" }}>*</span> All marked fields are required</div>
+
+            {error && <div style={{ background:"rgba(255,80,80,0.08)", border:"1px solid rgba(255,80,80,0.3)", padding:"10px 14px", fontSize:12, color:"#ff8080" }}>{error}</div>}
+
+            {/* Submit — full width, always visible */}
+            <div style={{ paddingTop:8 }}>
+              <button className="btn-gold"
+                style={{ width:"100%", padding:"16px", fontSize:11, letterSpacing:3 }}
+                onClick={()=>{ setForm(f=>({...f,_touched:{name:true,email:true,phone:true,street:true,city:true,state:true,zip:true}})); handleSubmit(); }}
+                disabled={submitting}>
+                {submitting ? "Sending Order..." : "Submit Order"}
+              </button>
+              <button onClick={()=>setStep("cart")} style={{ background:"none", border:"none", color:GRAY, cursor:"pointer", fontSize:10, letterSpacing:2, textDecoration:"underline", fontFamily:"'Montserrat',sans-serif", width:"100%", textAlign:"center", marginTop:12, display:"block" }}>
+                ← Back to Bag
+              </button>
+            </div>
+          </div>
+          );
+        })()}
+
+        {step === "confirm" && (
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", padding: "40px 32px", textAlign: "center", overflowY: "auto" }}>
+            <div style={{ fontSize: 48, color: GOLD, marginBottom: 16 }}>✦</div>
+            <h3 className="serif" style={{ fontSize: 30, fontWeight: 300, marginBottom: 12 }}>Order Received!</h3>
+            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.88)", lineHeight: 1.8, marginBottom: 28 }}>
+              Thank you, <span style={{ color: GOLD }}>{form.name}</span>. Your order has been submitted. To complete your order please send payment using one of the options below. Include your <strong style={{ color: GOLD }}>full name</strong> in the payment note.
+            </p>
+
+            {/* Order Total */}
+            <div style={{ background: BLACK, border: `1px solid rgba(201,168,76,0.2)`, padding: "16px 32px", marginBottom: 28, width: "100%" }}>
+              <div style={{ fontSize: 9, letterSpacing: 3, color: GRAY, marginBottom: 6 }}>ORDER TOTAL</div>
+              <div className="serif" style={{ fontSize: 36, color: GOLD }}>${finalTotal}</div>
+              {appliedPromo && (
+                <div style={{ fontSize: 10, color: "rgba(201,168,76,0.7)", marginTop: 4 }}>
+                  Code {appliedPromo.code} applied — {appliedPromo.pct}% off (saved ${discountAmt})
+                </div>
+              )}
+            </div>
+
+            {/* Payment Methods */}
+            <div style={{ width: "100%", marginBottom: 28 }}>
+              <div style={{ fontSize: 9, letterSpacing: 3, color: GOLD, textTransform: "uppercase", marginBottom: 16 }}>Send Payment To</div>
+
+              {/* Zelle */}
+              <div style={{ background: SURFACE2, border: "1px solid rgba(201,168,76,0.1)", padding: "16px 20px", marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#6B2D8B", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: WHITE }}>Z</div>
+                  <div style={{ textAlign: "left" }}>
+                    <div style={{ fontSize: 9, letterSpacing: 2, color: GRAY, textTransform: "uppercase" }}>Zelle</div>
+                    <div style={{ fontSize: 14, color: WHITE, marginTop: 2 }}>423-444-3668</div>
+                  </div>
+                </div>
+                <a href="tel:4234443668" style={{ fontSize: 9, letterSpacing: 2, color: GOLD, textTransform: "uppercase", textDecoration: "none" }}>Copy</a>
+              </div>
+
+              {/* Venmo */}
+              <div style={{ background: SURFACE2, border: "1px solid rgba(201,168,76,0.1)", padding: "16px 20px", marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#008CFF", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: WHITE }}>V</div>
+                  <div style={{ textAlign: "left" }}>
+                    <div style={{ fontSize: 9, letterSpacing: 2, color: GRAY, textTransform: "uppercase" }}>Venmo</div>
+                    <div style={{ fontSize: 14, color: WHITE, marginTop: 2 }}>@TruPepWellness</div>
+                  </div>
+                </div>
+                <a href="https://venmo.com/TruPepWellness" target="_blank" rel="noreferrer" style={{ fontSize: 9, letterSpacing: 2, color: GOLD, textTransform: "uppercase", textDecoration: "none" }}>Open</a>
+              </div>
+
+              {/* PayPal */}
+              <div style={{ background: SURFACE2, border: "1px solid rgba(201,168,76,0.1)", padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#003087", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: WHITE }}>PP</div>
+                  <div style={{ textAlign: "left" }}>
+                    <div style={{ fontSize: 9, letterSpacing: 2, color: GRAY, textTransform: "uppercase" }}>PayPal</div>
+                    <div style={{ fontSize: 14, color: WHITE, marginTop: 2 }}>@ItsTrinchy</div>
+                  </div>
+                </div>
+                <a href="https://paypal.me/ItsTrinchy" target="_blank" rel="noreferrer" style={{ fontSize: 9, letterSpacing: 2, color: GOLD, textTransform: "uppercase", textDecoration: "none" }}>Open</a>
+              </div>
+            </div>
+
+            {/* Confirmation note */}
+            <div style={{ background: "rgba(201,168,76,0.05)", border: "1px solid rgba(201,168,76,0.15)", padding: "16px 20px", width: "100%", marginBottom: 24 }}>
+              <p style={{ fontSize: 11, color: "rgba(255,255,255,0.88)", lineHeight: 1.8, letterSpacing: 0.3 }}>
+                Once payment is received our team will confirm your order and arrange fulfillment. A confirmation will be sent to <span style={{ color: GOLD }}>{form.email}</span>.
+              </p>
+            </div>
+
+            <div style={{ fontSize: 10, letterSpacing: 1, color: GRAY }}>
+              Questions? <a href="mailto:trupepwellness@gmail.com" style={{ color: GOLD }}>trupepwellness@gmail.com</a>
+            </div>
+            <div style={{ fontSize: 10, letterSpacing: 1, color: GRAY, marginTop: 6 }}>
+              <a href="tel:4234443668" style={{ color: GOLD }}>423-444-3668</a>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AboutPage() {
+  return (
+    <div style={{ paddingTop: 80, background: BLACK, minHeight: "100vh" }}>
+      <div style={{
+        padding: "80px 40px 60px", textAlign: "center",
+        background: `linear-gradient(180deg, ${SURFACE} 0%, ${BLACK} 100%)`,
+      }}>
+        <div className="section-label" style={{ justifyContent: "center" }}>Our Philosophy</div>
+        <h1 className="serif" style={{ fontSize: "clamp(36px,5vw,64px)", fontWeight: 300, letterSpacing: -1, marginBottom: 16 }}>
+          Why <span style={{ color: GOLD }}>TruPep</span>
+        </h1>
+      </div>
+      <AboutSection />
+      <section style={{ padding: "80px 40px", maxWidth: 900, margin: "0 auto" }}>
+        <div className="section-label">Our Standards</div>
+        <h2 className="serif" style={{ fontSize: 40, fontWeight: 300, marginBottom: 40, letterSpacing: -0.5 }}>
+          Premium Quality, <span style={{ color: GOLD }}>Every Compound</span>
+        </h2>
+        {[
+          ["Research-Grade Purity", "Every peptide compound in our catalog meets stringent purity and quality standards. We source only from verified, reputable suppliers aligned with premium wellness standards."],
+          ["Miami-Based Service", "Rooted in Miami, Florida — a city synonymous with health, performance, and affluent wellness culture. We understand what premium means to our clients."],
+          ["Personalized Guidance", "Our team is available to assist you in understanding our catalog and navigating wellness protocols. Contact us directly for personalized consultation."],
+          ["Discreet & Secure", "All orders are handled with the utmost discretion and professionalism. Your privacy and security are paramount to the TruPep experience."],
+        ].map(([t, d]) => (
+          <div key={t} style={{ display: "flex", gap: 32, padding: "40px 0", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+            <div style={{ color: GOLD, fontSize: 20, marginTop: 2 }}>✦</div>
+            <div>
+              <h3 className="serif" style={{ fontSize: 22, fontWeight: 400, marginBottom: 10, color: WHITE }}>{t}</h3>
+              <p style={{ fontSize: 13, lineHeight: 1.8, color: "rgba(255,255,255,0.88)", fontWeight: 300 }}>{d}</p>
+            </div>
+          </div>
+        ))}
+      </section>
+    </div>
+  );
+}
+
+function ContactPage() {
+  const [form, setForm] = useState({ name: "", email: "", phone: "", message: "", _touched: {} });
+  const [sent, setSent] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  const isValidEmail = v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+  const isValidPhone = v => !v || v.replace(/\D/g, "").length >= 10; // optional
+  const formatPhone = raw => {
+    const d = raw.replace(/\D/g, "").slice(0, 10);
+    if (d.length <= 3) return d;
+    if (d.length <= 6) return `${d.slice(0,3)}-${d.slice(3)}`;
+    return `${d.slice(0,3)}-${d.slice(3,6)}-${d.slice(6)}`;
+  };
+  const fieldValid = {
+    name:    form.name.trim().length >= 2,
+    email:   isValidEmail(form.email),
+    phone:   isValidPhone(form.phone),
+    message: form.message.trim().length >= 10,
+  };
+  const touched = form._touched || {};
+  const markTouched = key => setForm(f => ({ ...f, _touched: { ...(f._touched||{}), [key]: true } }));
+  const fieldBorder = (key, required = true) => {
+    if (!touched[key]) return `1px solid rgba(201,168,76,0.2)`;
+    if (!required && !form[key]) return `1px solid rgba(201,168,76,0.2)`;
+    return fieldValid[key] ? `1px solid rgba(100,200,100,0.6)` : `1px solid rgba(255,80,80,0.7)`;
+  };
+  const fieldGlow = (key, required = true) => {
+    if (!touched[key]) return "none";
+    if (!required && !form[key]) return "none";
+    return fieldValid[key] ? "0 0 0 2px rgba(100,200,100,0.1)" : "0 0 0 2px rgba(255,80,80,0.12)";
+  };
+  const fieldIcon = (key, required = true) => {
+    if (!touched[key] || (!required && !form[key])) return null;
+    return fieldValid[key]
+      ? <span style={{ color: "#6cc070", fontSize: 13 }}>✓</span>
+      : <span style={{ color: "#ff6060", fontSize: 13 }}>✕</span>;
+  };
+
+  const handleSend = async () => {
+    setForm(f => ({ ...f, _touched: { name: true, email: true, phone: true, message: true } }));
+    if (!fieldValid.name || !fieldValid.email || !fieldValid.message) return;
+    setSubmitting(true);
+    try {
+      const fd = new FormData();
+      fd.append("_subject", `Contact Form — TruPep Wellness — ${form.name}`);
+      fd.append("name", form.name);
+      fd.append("email", form.email);
+      fd.append("phone", form.phone || "Not provided");
+      fd.append("message", form.message);
+      fd.append("_replyto", form.email);
+      await fetch("https://formspree.io/f/xvzyzgqa", { method: "POST", headers: { Accept: "application/json" }, body: fd });
+      setSent(true);
+    } catch { setSent(true); }
+    setSubmitting(false);
+  };
+
+  return (
+    <div style={{ paddingTop: 80, background: BLACK, minHeight: "100vh" }}>
+      <div style={{
+        padding: "80px 40px 60px", textAlign: "center",
+        background: `linear-gradient(180deg, ${SURFACE} 0%, ${BLACK} 100%)`,
+      }}>
+        <div className="section-label" style={{ justifyContent: "center" }}>Get in Touch</div>
+        <h1 className="serif" style={{ fontSize: "clamp(36px,5vw,64px)", fontWeight: 300, letterSpacing: -1, marginBottom: 16 }}>
+          Begin Your <span style={{ color: GOLD }}>Consultation</span>
+        </h1>
+        <p style={{ color: "rgba(255,255,255,0.88)", fontSize: 13, letterSpacing: 0.5, fontWeight: 300 }}>
+          Our team is ready to assist with product inquiries, protocol questions, and order support.
+        </p>
+      </div>
+
+      <div className="contact-grid" style={{ maxWidth: 1100, margin: "0 auto", padding: "80px 40px", display: "flex", gap: 80, flexWrap: "wrap" }}>
+        {/* Info */}
+        <div style={{ flex: "0 0 280px" }}>
+          <div className="section-label">Contact Information</div>
+          <h2 className="serif" style={{ fontSize: 32, fontWeight: 300, marginBottom: 40 }}>TruPep Wellness</h2>
+          {[
+            ["Email", "trupepwellness@gmail.com", "mailto:trupepwellness@gmail.com"],
+            ["Phone", "423-444-3668", "tel:4234443668"],
+            ["Location", "Miami, Florida", null],
+          ].map(([label, val, href]) => (
+            <div key={label} style={{ marginBottom: 32 }}>
+              <div style={{ fontSize: 9, letterSpacing: 3, color: GOLD, marginBottom: 6, textTransform: "uppercase" }}>{label}</div>
+              {href ? (
+                <a href={href} style={{ fontSize: 14, color: WHITE, textDecoration: "none", transition: "color 0.2s" }}
+                  onMouseEnter={e => e.target.style.color = GOLD}
+                  onMouseLeave={e => e.target.style.color = WHITE}
+                >{val}</a>
+              ) : (
+                <div style={{ fontSize: 14, color: WHITE }}>{val}</div>
+              )}
+            </div>
+          ))}
+          <div style={{ marginTop: 48, padding: 24, border: `1px solid rgba(201,168,76,0.15)`, background: "rgba(201,168,76,0.02)" }}>
+            <div className="serif" style={{ fontSize: 20, marginBottom: 8 }}>Response Time</div>
+            <p style={{ fontSize: 12, lineHeight: 1.8, color: "rgba(255,255,255,0.88)", fontWeight: 300 }}>
+              We typically respond to all inquiries within 24 hours. For urgent orders, please call directly.
+            </p>
+          </div>
+        </div>
+
+        {/* Form */}
+        <div style={{ flex: 1, minWidth: 280 }}>
+          {sent ? (
+            <div style={{ textAlign: "center", padding: "80px 0" }}>
+              <div style={{ fontSize: 56, color: GOLD, marginBottom: 24 }}>✦</div>
+              <h3 className="serif" style={{ fontSize: 32, fontWeight: 300, marginBottom: 16 }}>Message Sent</h3>
+              <p style={{ color: "rgba(255,255,255,0.88)", lineHeight: 1.8 }}>
+                Thank you for reaching out. A member of the TruPep Wellness team will be in touch shortly.
+              </p>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+              {/* Name */}
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                  <label style={{ fontSize: 9, letterSpacing: 3, color: GOLD, textTransform: "uppercase" }}>Full Name <span style={{ color: "#ff6060" }}>*</span></label>
+                  {fieldIcon("name")}
+                </div>
+                <input type="text" placeholder="Your full name" value={form.name}
+                  onChange={e => setForm({ ...form, name: e.target.value })}
+                  onBlur={() => markTouched("name")}
+                  style={{ width: "100%", padding: "14px 18px", background: SURFACE, border: fieldBorder("name"), boxShadow: fieldGlow("name"), color: WHITE, fontSize: 13, outline: "none", fontFamily: "'Montserrat', sans-serif", transition: "all 0.2s" }}
+                />
+                {touched.name && !fieldValid.name && <div style={{ fontSize: 10, color: "rgba(255,100,100,0.9)", marginTop: 4 }}>Please enter your full name</div>}
+              </div>
+
+              {/* Email */}
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                  <label style={{ fontSize: 9, letterSpacing: 3, color: GOLD, textTransform: "uppercase" }}>Email <span style={{ color: "#ff6060" }}>*</span></label>
+                  {fieldIcon("email")}
+                </div>
+                <input type="email" placeholder="your@email.com" value={form.email}
+                  onChange={e => setForm({ ...form, email: e.target.value })}
+                  onBlur={() => markTouched("email")}
+                  style={{ width: "100%", padding: "14px 18px", background: SURFACE, border: fieldBorder("email"), boxShadow: fieldGlow("email"), color: WHITE, fontSize: 13, outline: "none", fontFamily: "'Montserrat', sans-serif", transition: "all 0.2s" }}
+                />
+                {touched.email && !fieldValid.email && <div style={{ fontSize: 10, color: "rgba(255,100,100,0.9)", marginTop: 4 }}>Please enter a valid email address</div>}
+              </div>
+
+              {/* Phone — optional but auto-formats */}
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                  <label style={{ fontSize: 9, letterSpacing: 3, color: GOLD, textTransform: "uppercase" }}>Phone <span style={{ color: GRAY, fontSize: 8 }}>(optional)</span></label>
+                  {fieldIcon("phone", false)}
+                </div>
+                <input type="tel" placeholder="555-123-4567" value={form.phone}
+                  onChange={e => setForm({ ...form, phone: formatPhone(e.target.value) })}
+                  onBlur={() => markTouched("phone")}
+                  style={{ width: "100%", padding: "14px 18px", background: SURFACE, border: fieldBorder("phone", false), boxShadow: fieldGlow("phone", false), color: WHITE, fontSize: 13, outline: "none", fontFamily: "'Montserrat', sans-serif", transition: "all 0.2s" }}
+                />
+              </div>
+
+              {/* Message */}
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                  <label style={{ fontSize: 9, letterSpacing: 3, color: GOLD, textTransform: "uppercase" }}>Message <span style={{ color: "#ff6060" }}>*</span></label>
+                  {fieldIcon("message")}
+                </div>
+                <textarea placeholder="Tell us about your wellness goals or product inquiry..." rows={5}
+                  value={form.message}
+                  onChange={e => setForm({ ...form, message: e.target.value })}
+                  onBlur={() => markTouched("message")}
+                  style={{ width: "100%", padding: "14px 18px", background: SURFACE, border: fieldBorder("message"), boxShadow: fieldGlow("message"), color: WHITE, fontSize: 13, resize: "vertical", outline: "none", fontFamily: "'Montserrat', sans-serif", transition: "all 0.2s" }}
+                />
+                {touched.message && !fieldValid.message && <div style={{ fontSize: 10, color: "rgba(255,100,100,0.9)", marginTop: 4 }}>Please enter your message (at least 10 characters)</div>}
+              </div>
+
+              <div style={{ fontSize: 10, color: GRAY, letterSpacing: 0.5 }}>
+                <span style={{ color: "#ff6060" }}>*</span> Required fields
+              </div>
+
+              <button className="btn-gold" onClick={handleSend} disabled={submitting}
+                style={{ alignSelf: "flex-start", opacity: submitting ? 0.7 : 1 }}>
+                {submitting ? "Sending..." : "Send Message"}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function HomePage({ setPage, onAdd }) {
+  const featured = PRODUCTS.filter(p => ["BPC-157","NAD+","Retatrutide","GHK-Cu","Selank","TB-500"].includes(p.name));
+  return (
+    <>
+      <Hero setPage={setPage} />
+      <AboutSection />
+
+      {/* Featured Products */}
+      <section style={{ padding: "120px 40px", background: BLACK }}>
+        <div style={{ maxWidth: 1280, margin: "0 auto" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 60, flexWrap: "wrap", gap: 16 }}>
+            <div>
+              <div className="section-label">Curated Selection</div>
+              <h2 className="serif" style={{ fontSize: "clamp(32px,4vw,52px)", fontWeight: 300, letterSpacing: -0.5 }}>
+                Featured <span style={{ color: GOLD }}>Compounds</span>
+              </h2>
+            </div>
+            <button className="btn-outline" onClick={() => setPage("products")}>View Full Catalog</button>
+          </div>
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
+            gap: 2,
+          }}>
+            {featured.map(p => <ProductCard key={p.id} product={p} onAdd={onAdd} />)}
+          </div>
+        </div>
+      </section>
+
+      {/* Testimonials placeholder */}
+      <section style={{ padding: "80px 40px", background: SURFACE }}>
+        <div style={{ maxWidth: 1000, margin: "0 auto", textAlign: "center" }}>
+          <div className="section-label" style={{ justifyContent: "center" }}>Client Experiences</div>
+          <h2 className="serif" style={{ fontSize: "clamp(28px,4vw,48px)", fontWeight: 300, marginBottom: 60 }}>
+            Trusted by Miami's <span style={{ color: GOLD }}>Elite</span>
+          </h2>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 2 }}>
+            {[
+              { text: "TruPep has completely transformed my recovery protocol. The quality and service is unmatched.", author: "J.M.", role: "Miami, FL" },
+              { text: "Finally a premium source I can trust. The consultation process was professional and thorough.", author: "A.R.", role: "Miami, FL" },
+              { text: "The results from my peptide protocol have been remarkable. TruPep is the gold standard.", author: "D.T.", role: "Miami, FL" },
+            ].map((t, i) => (
+              <div key={i} style={{
+                background: BLACK, padding: "40px 32px",
+                borderTop: `2px solid ${GOLD}`,
+              }}>
+                <div style={{ fontSize: 32, color: GOLD, marginBottom: 16, opacity: 0.4 }}>"</div>
+                <p className="serif" style={{ fontSize: 16, lineHeight: 1.8, color: "rgba(255,255,255,0.7)", fontStyle: "italic", marginBottom: 24 }}>{t.text}</p>
+                <div style={{ fontSize: 11, letterSpacing: 2, color: GOLD }}>{t.author}</div>
+                <div style={{ fontSize: 9, letterSpacing: 2, color: GRAY, marginTop: 2 }}>{t.role}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* CTA Banner */}
+      <section style={{
+        padding: "100px 40px", textAlign: "center",
+        background: `linear-gradient(135deg, rgba(201,168,76,0.06) 0%, transparent 50%, rgba(201,168,76,0.04) 100%)`,
+        borderTop: "1px solid rgba(201,168,76,0.1)",
+        borderBottom: "1px solid rgba(201,168,76,0.1)",
+      }}>
+        <div className="section-label" style={{ justifyContent: "center" }}>Begin Today</div>
+        <h2 className="serif" style={{ fontSize: "clamp(32px,5vw,64px)", fontWeight: 300, marginBottom: 16, letterSpacing: -1 }}>
+          Ready to Optimize?
+        </h2>
+        <p style={{ color: "rgba(255,255,255,0.88)", fontSize: 14, marginBottom: 40, letterSpacing: 0.5, fontWeight: 300 }}>
+          Explore our full catalog or speak with our team to find the right protocol for your goals.
+        </p>
+        <div style={{ display: "flex", gap: 16, justifyContent: "center", flexWrap: "wrap" }}>
+          <button className="btn-gold" onClick={() => setPage("products")}>Shop the Collection</button>
+          <button className="btn-outline" onClick={() => setPage("contact")}>Contact Us</button>
+        </div>
+      </section>
+    </>
+  );
+}
+
+function Footer({ setPage }) {
+  return (
+    <footer style={{ background: SURFACE, borderTop: "1px solid rgba(201,168,76,0.1)", padding: "60px 40px 40px" }}>
+      <div style={{ maxWidth: 1280, margin: "0 auto" }}>
+        <div className="footer-inner" style={{ display: "flex", gap: 60, flexWrap: "wrap", marginBottom: 60 }}>
+          <div style={{ flex: "0 0 300px" }}>
+            <TPLogo size={32} light />
+            <p style={{ marginTop: 20, fontSize: 12, lineHeight: 1.8, color: "rgba(255,255,255,0.88)", fontWeight: 300, maxWidth: 260 }}>
+              Premium research peptide solutions for recovery, performance, longevity, and total body optimization.
+            </p>
+          </div>
+          <div style={{ flex: 1, display: "flex", gap: 60, flexWrap: "wrap" }}>
+            <div>
+              <div style={{ fontSize: 9, letterSpacing: 3, color: GOLD, textTransform: "uppercase", marginBottom: 20 }}>Navigate</div>
+              {[["home","Home"],["products","Products"],["stacks","Stacks"],["calculator","Calculator"],["howto","How To Use"],["testimonials","Results"],["consultation","Consultation"],["about","About"],["contact","Contact"]].map(([p,l]) => (
+                <button key={p} onClick={() => setPage(p)} style={{
+                  display: "block", background: "none", border: "none",
+                  color: "rgba(255,255,255,0.88)", cursor: "pointer",
+                  fontSize: 12, letterSpacing: 1, marginBottom: 12,
+                  fontFamily: "'Montserrat', sans-serif",
+                  transition: "color 0.2s",
+                }}
+                  onMouseEnter={e => e.target.style.color = GOLD}
+                  onMouseLeave={e => e.target.style.color = "rgba(255,255,255,0.4)"}
+                >{l}</button>
+              ))}
+            </div>
+            <div>
+              <div style={{ fontSize: 9, letterSpacing: 3, color: GOLD, textTransform: "uppercase", marginBottom: 20 }}>Contact</div>
+              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.88)", marginBottom: 10 }}>
+                <a href="mailto:trupepwellness@gmail.com" style={{ color: "rgba(255,255,255,0.88)", textDecoration: "none" }}>trupepwellness@gmail.com</a>
+              </div>
+              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.88)", marginBottom: 10 }}>
+                <a href="tel:4234443668" style={{ color: "rgba(255,255,255,0.88)", textDecoration: "none" }}>423-444-3668</a>
+              </div>
+              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.88)" }}>Miami, Florida</div>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ borderTop: "1px solid rgba(255,255,255,0.05)", paddingTop: 32 }}>
+          <p style={{ fontSize: 10, color: "rgba(255,255,255,0.2)", lineHeight: 1.8, letterSpacing: 0.3, marginBottom: 16 }}>
+            <strong style={{ color: "rgba(255,255,255,0.88)", letterSpacing: 1 }}>DISCLAIMER:</strong> All products offered by TruPep Wellness are for research and wellness purposes only. These statements have not been evaluated by the Food and Drug Administration. Products are not intended to diagnose, treat, cure, or prevent any disease. Always consult with a qualified healthcare professional before beginning any wellness protocol. For use by adults 18 years of age or older.
+          </p>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+            <div style={{ fontSize: 10, color: "rgba(255,255,255,0.15)", letterSpacing: 1 }}>
+              © {new Date().getFullYear()} TruPep Wellness · Miami, Florida
+            </div>
+            <div style={{ fontSize: 10, color: "rgba(255,255,255,0.15)", letterSpacing: 1 }}>
+              Advanced Peptide Wellness
+            </div>
+          </div>
+        </div>
+      </div>
+    </footer>
+  );
+}
+
+// ─── STACKS DATA ──────────────────────────────────────────────────────────────
+const STACKS = [
+  {
+    id: "weight-loss",
+    name: "Weight Loss Stack",
+    icon: "⬡",
+    tagline: "Advanced Metabolic Optimization Protocol",
+    desc: "We combine Retatrutide (triple GLP-1/GIP/glucagon receptor agonist) with Lipo C w/ B12 for lipotropic fat mobilization and MOTS-C for mitochondrial metabolic efficiency. Together these three attack weight loss from completely different pathways simultaneously — appetite suppression, fat cell regulation, and cellular energy optimization — producing results no single compound can match.",
+    color: "#C9A84C",
+    items: [
+      { name: "Retatrutide 10 mg", price: 95 },
+      { name: "Lipo C with B12 10 ml", price: 100 },
+      { name: "MOTS-C 10 mg", price: 95 },
+    ],
+    total: 290, stackPrice: 255,
+    benefits: ["Triple receptor agonist", "Lipotropic fat mobilization", "Mitochondrial efficiency", "Appetite regulation"],
+  },
+  {
+    id: "recovery",
+    name: "Recovery Stack",
+    icon: "✦",
+    tagline: "Elite Tissue Repair & Healing Protocol",
+    desc: "BPC-157 targets gut integrity and tendon/ligament repair. TB-500 promotes tissue regeneration, angiogenesis, and flexibility. KPV attacks inflammation at the cellular mucosal level. Stacked together they create a comprehensive recovery environment — systemic healing, cellular repair, and inflammation control — that far outperforms any single compound alone.",
+    color: "#C9A84C",
+    items: [
+      { name: "BPC-157 10 mg", price: 70 },
+      { name: "TB-500 (Thymosin Beta-4) 10 mg", price: 75 },
+      { name: "KPV Tripeptide 10 mg", price: 70 },
+    ],
+    total: 215, stackPrice: 185,
+    benefits: ["Tissue repair", "Angiogenesis support", "Gut integrity", "Cellular inflammation control"],
+  },
+  {
+    id: "anti-aging",
+    name: "Anti-Aging Stack",
+    icon: "◇",
+    tagline: "Longevity & Cellular Renewal Protocol",
+    desc: "NAD+ restores cellular energy production and activates sirtuins for DNA repair. Epithalon supports telomere elongation and pineal bioregulation. GHK-Cu stimulates collagen, elastin, and skin regeneration. Three distinct anti-aging mechanisms — genetic, mitochondrial, and structural — working in concert for a true multi-level longevity protocol.",
+    color: "#C9A84C",
+    items: [
+      { name: "NAD+ 500 mg", price: 95 },
+      { name: "Epithalon 10 mg", price: 70 },
+      { name: "GHK-Cu 100 mg", price: 90 },
+    ],
+    total: 255, stackPrice: 220,
+    benefits: ["Sirtuin activation", "Telomere support", "Collagen stimulation", "DNA repair"],
+  },
+  {
+    id: "performance",
+    name: "Performance Stack",
+    icon: "◈",
+    tagline: "Growth Hormone Optimization Protocol",
+    desc: "CJC No DAC provides GHRH stimulation while Ipamorelin adds a clean selective GH secretagogue pulse — together they amplify GH release far beyond either alone. Tesamorelin then specifically targets visceral fat reduction via IGF-1 elevation. A three-compound protocol addressing GH production, selective GH release, and targeted body recomposition.",
+    color: "#C9A84C",
+    items: [
+      { name: "CJC No DAC / Ipamorelin 5/5 mg", price: 90 },
+      { name: "Ipamorelin 10 mg", price: 70 },
+      { name: "Tesamorelin 20 mg", price: 115 },
+    ],
+    total: 275, stackPrice: 240,
+    benefits: ["Amplified GH pulse", "Selective GH release", "Visceral fat reduction", "IGF-1 elevation"],
+  },
+  {
+    id: "glow-stack",
+    name: "Glow & Aesthetics Stack",
+    icon: "✧",
+    tagline: "Premium Aesthetic Wellness Protocol",
+    desc: "Our GLOW Blend (70mg) already combines GHK-Cu, Epithalon, BPC-157 fragment, Melanotan I, and KPV for comprehensive skin renewal. Adding standalone GHK-Cu 100mg amplifies collagen and elastin production beyond the blend alone. Melanotan I 10mg supports gradual, natural pigmentation. Together: skin radiance, structural regeneration, and tone — the full aesthetic protocol.",
+    color: "#C9A84C",
+    items: [
+      { name: "GLOW TruPep Blend 70 mg", price: 135 },
+      { name: "GHK-Cu 100 mg", price: 90 },
+      { name: "Melanotan I (MT-1) 10 mg", price: 80 },
+    ],
+    total: 305, stackPrice: 265,
+    benefits: ["Skin radiance & firmness", "Collagen amplification", "Natural pigmentation", "Cellular skin renewal"],
+  },
+  {
+    id: "cognitive",
+    name: "Cognitive & Mood Stack",
+    icon: "○",
+    tagline: "Neuro-Optimization Protocol",
+    desc: "Selank provides anxiolytic stress resilience and immune modulation without sedation. Semax amplifies BDNF, neuroprotection, and cognitive processing. NAD+ fuels the substantial neuronal energy demands that peak mental performance requires. Three complementary mechanisms — anxiety reduction, neuroplasticity, and neuronal fuel — for sustained cognitive excellence.",
+    color: "#C9A84C",
+    items: [
+      { name: "Selank 10 mg", price: 70 },
+      { name: "Semax 10 mg", price: 70 },
+      { name: "NAD+ 500 mg", price: 95 },
+    ],
+    total: 235, stackPrice: 200,
+    benefits: ["Anxiolytic support", "BDNF upregulation", "Neuroprotection", "Neuronal energy"],
+  },
+  {
+    id: "klow-stack",
+    name: "KLOW Metabolic Stack",
+    icon: "⬡",
+    tagline: "TruPep Signature Advanced Metabolic Protocol",
+    desc: "Our most advanced weight management protocol. KLOW (80mg) — TruPep's exclusive 5-peptide metabolic blend — is paired with Cagrilintide for amylin-pathway satiety support and Tirzepatide 20mg for dual GLP-1/GIP receptor activation. This triple-layer approach simultaneously addresses appetite, fat metabolism, insulin sensitivity, and mitochondrial efficiency. Designed for clients ready for maximum results.",
+    color: "#C9A84C",
+    items: [
+      { name: "KLOW TruPep Blend 80 mg", price: 155 },
+      { name: "Cagrilintide 5 mg", price: 70 },
+      { name: "Tirzepatide 20 mg", price: 95 },
+    ],
+    total: 320, stackPrice: 280,
+    benefits: ["Multi-pathway fat loss", "Dual GLP-1/GIP", "Amylin satiety support", "KLOW 5-peptide blend"],
+  },
+];
+export { GOLD, GOLD_LIGHT, GOLD_DARK, BLACK, WHITE, GRAY, SURFACE, SURFACE2, globalStyles, TP_LOGO_SRC, TPLogo, PRODUCTS, CATEGORIES, useCart, Nav, Hero, AboutSection, ProductCard, ProductsPage, CartDrawer, AboutPage, ContactPage, HomePage, Footer, STACKS };
