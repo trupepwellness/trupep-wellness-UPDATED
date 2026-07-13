@@ -126,3 +126,4 @@ export const TESTIMONIALS = [
   { name:"Daniela M.", stars:5, text:"The cognitive stack keeps me sharp during 14-hour trading sessions. Remarkable clarity." },
   { name:"Rafael C.",  stars:5, text:"TruPep's quality and customer service are unmatched. Loyal customer for life." },
 ];
+
