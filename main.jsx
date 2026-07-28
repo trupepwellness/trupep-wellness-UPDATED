@@ -1,11 +1,744 @@
 import LOGO from "./logoData.js";
 import { LOGO2 } from "./logoData.js";
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, createContext, useContext } from "react";
 import ReactDOM from "react-dom/client";
-import {
-  PRODUCTS, STACKS, PROMO_CODES, TESTIMONIALS, CATEGORIES,
-  GOLD, BLACK, WHITE, SERIF, SANS,
-} from "./data.jsx";
+import { createClient } from "@supabase/supabase-js";
+
+// ── SUPABASE ────────────────────────────────────────────────────
+// Pull these from Supabase: Project Settings > API
+// Add them to a .env file at your project root (Vite requires the VITE_ prefix):
+//   VITE_SUPABASE_URL=https://xxxxx.supabase.co
+//   VITE_SUPABASE_ANON_KEY=your-anon-public-key
+// Then add .env to .gitignore so it doesn't end up on GitHub.
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+// ── BRAND / CATALOG DATA (formerly data.jsx) ───────────────────
+const GOLD  = "#F0C84A";
+const BLACK = "#0A0A0A";
+const WHITE = "#FFFFFF";
+const SERIF = "'Cormorant Garamond', serif";
+const SANS  = "'Montserrat', sans-serif";
+
+const CATEGORIES = [
+  "All","Weight Management","Recovery","Anti-Aging",
+  "Performance","Aesthetics","Cognitive","Peptide Blends","Accessories",
+];
+
+// GHK-Cu removed from Glow stack per update — still available individually in catalog
+const STACKS = [
+  { id:"weightloss", icon:"⚖️", name:"Weight Loss Stack",         tagline:"Advanced Metabolic Protocol",
+    desc:"Comprehensive multi-compound approach to metabolic support, appetite regulation, and body recomposition.",
+    peptides:["Tirzepatide","Retatrutide","5-Amino-1MQ","Cagrilintide","HGH Fragment 176-191","Lipo C with B12"] },
+  { id:"recovery",   icon:"🔄", name:"Recovery Stack",            tagline:"Accelerated Tissue Repair",
+    desc:"Targeted compounds for musculoskeletal healing, gut health, and structural tissue recovery.",
+    peptides:["BPC-157","TB-500","Ipamorelin","CJC No DAC / Ipamorelin","KPV Tripeptide"] },
+  { id:"antiaging",  icon:"⏳", name:"Anti-Aging Stack",          tagline:"Longevity & Cellular Health",
+    desc:"Research-backed compounds targeting telomere support, mitochondrial function, and cellular longevity.",
+    peptides:["Epithalon","GHK-Cu","MOTS-C","NAD+","Tesamorelin"] },
+  { id:"performance",icon:"⚡", name:"Performance Stack",         tagline:"Peak Physical Output",
+    desc:"Optimized for athletes seeking elevated GH output, endurance, focus, and faster recovery.",
+    peptides:["CJC No DAC / Ipamorelin","Ipamorelin","BPC-157","TB-500","Selank","Semax"] },
+  { id:"glow",       icon:"✨", name:"Glow & Aesthetics Stack",   tagline:"Skin, Pigmentation & Beauty",
+    desc:"Aesthetic compounds for skin quality, pigmentation, libido, and overall appearance enhancement.",
+    peptides:["Melanotan I","Melanotan II","PT-141","KPV Tripeptide","Lipo C with B12","GLOW Blend"] },
+  { id:"cognitive",  icon:"🧠", name:"Cognitive & Mood Stack",    tagline:"Mental Clarity & Focus",
+    desc:"Nootropic stack for enhanced cognition, mood stabilization, stress resilience, and neuroprotection.",
+    peptides:["Semax","Selank","PT-141","NAD+"] },
+  { id:"klow",       icon:"🔥", name:"KLOW Metabolic Stack",      tagline:"Metabolic Optimization",
+    desc:"Proprietary metabolic protocol combining the KLOW Blend with complementary compounds.",
+    peptides:["KLOW Blend","5-Amino-1MQ","Cagrilintide"] },
+];
+
+const PROMO_CODES = {
+  GOLDSTART5:5, PEPTIDE10:10, TRUPEP15:15, MIAMI20:20, VENOM25:25,
+  PRIDE25:25, LUIS25:25,
+  BLACKGOLD30:30, BLAZING35:35, KINGPEP40:40, GODMODE45:45,
+  ULTRAVIP50:50, DIAMOND55:55,
+};
+
+const TESTIMONIALS = [
+  { name:"Marcus R.",  stars:5, text:"Down 34 lbs in 12 weeks on the weight loss stack. The results speak for themselves." },
+  { name:"Sophia L.",  stars:5, text:"My skin has never looked better. The glow stack completely transformed my complexion." },
+  { name:"James T.",   stars:5, text:"Recovery time cut in half after switching to BPC-157 and TB-500. Total game changer." },
+  { name:"Daniela M.", stars:5, text:"The cognitive stack keeps me sharp during 14-hour trading sessions. Remarkable clarity." },
+  { name:"Rafael C.",  stars:5, text:"TruPep's quality and customer service are unmatched. Loyal customer for life." },
+];
+
+// ── PRODUCTS CONTEXT ────────────────────────────────────────────
+// Live product catalog (name, price, image, description, stock, COA) lives
+// in Supabase, editable from the Admin page below -- this fetches it once
+// and shares it with every page via context.
+// Storefront-facing product data now lives in Supabase (table: products)
+// instead of the static PRODUCTS array in data.jsx. This context fetches
+// once, exposes { products, loading, refresh }, and only returns
+// active=true rows -- the admin dashboard queries Supabase directly to
+// see everything, including hidden/inactive products.
+//
+// Shape of each product matches the old data.jsx PRODUCTS entries
+// (id, name, cat, desc, variants) plus new fields (image_url, stock_quantity,
+// low_stock_threshold, batch_number, coa_url) so existing components
+// (ProductCard, ProductsPage, etc.) work with minimal changes.
+
+const ProductsContext = createContext({ products: [], loading: true, refresh: () => {} });
+
+function ProductsProvider({ children }) {
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from("products")
+      .select("*")
+      .eq("active", true)
+      .order("name", { ascending: true });
+
+    if (!error) {
+      const mapped = (data || []).map((p) => ({
+        id: p.id,
+        name: p.name,
+        cat: p.category,
+        desc: p.description,
+        variants: p.variants || [],
+        image_url: p.image_url,
+        stock_quantity: p.stock_quantity,
+        low_stock_threshold: p.low_stock_threshold,
+        batch_number: p.batch_number,
+        coa_url: p.coa_url,
+      }));
+      setProducts(mapped);
+    }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { refresh(); }, [refresh]);
+
+  return (
+    <ProductsContext.Provider value={{ products, loading, refresh }}>
+      {children}
+    </ProductsContext.Provider>
+  );
+}
+
+function useProducts() {
+  return useContext(ProductsContext);
+}
+
+// ── LAB RESULTS PAGE (page id "labresults") ─────────────────────
+
+// Public "Lab Results" page -- page id "labresults".
+// Reads live from the same products context as the rest of the storefront,
+// so COA links, batch numbers, and product names always match the catalog.
+function LabResultsPage() {
+  const { products, loading } = useProducts();
+
+  return (
+    <div style={{ padding: "100px 24px 80px" }}>
+      <div style={{ maxWidth: 820, margin: "0 auto" }}>
+        <div style={{ marginBottom: 52 }}>
+          <div style={{ fontSize: 10, letterSpacing: 4, color: GOLD, textTransform: "uppercase", marginBottom: 12 }}>
+            TruPep Wellness · Third-Party Verified
+          </div>
+          <h1 style={{ fontFamily: SERIF, fontSize: "clamp(28px,5vw,50px)", fontWeight: 300, marginBottom: 8 }}>
+            Lab Results
+          </h1>
+          <div style={{ fontSize: 13, color: "rgba(255,255,255,0.88)", lineHeight: 1.9, maxWidth: 560 }}>
+            Every batch is independently tested for purity and identity. Find your
+            product below to view its Certificate of Analysis.
+          </div>
+        </div>
+
+        {loading && (
+          <p style={{ fontSize: 13, color: "rgba(255,255,255,0.55)" }}>Loading lab results…</p>
+        )}
+
+        {!loading && products.map((product) => (
+          <div
+            key={product.id}
+            id={product.id}
+            style={{
+              display: "flex", justifyContent: "space-between", alignItems: "center",
+              gap: 16, marginBottom: 18, paddingBottom: 18,
+              borderBottom: `1px solid ${BORDER}`, flexWrap: "wrap",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              {product.image_url && (
+                <img src={product.image_url} alt={product.name}
+                  style={{ width: 44, height: 44, objectFit: "cover", borderRadius: 6, border: `1px solid ${BORDER}` }} />
+              )}
+              <div>
+                <div style={{ fontFamily: SERIF, fontSize: 20, color: "#fff", fontWeight: 300 }}>
+                  {product.name}
+                </div>
+                {product.batch_number && (
+                  <div style={{ fontSize: 11, color: "rgba(255,255,255,0.55)", marginTop: 4 }}>
+                    Batch {product.batch_number}
+                  </div>
+                )}
+              </div>
+            </div>
+            {product.coa_url ? (
+              <a
+                href={product.coa_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: GOLD, fontSize: 13, fontWeight: 600, letterSpacing: 0.5 }}
+              >
+                View COA →
+              </a>
+            ) : (
+              <span style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", fontStyle: "italic" }}>
+                COA pending
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── ADMIN DASHBOARD (page id "admin") ────────────────────────────
+// Gated by Supabase Auth. Create your one admin login in Supabase:
+// Authentication > Users > Add user. No public sign-up on purpose.
+const ADMIN_BORDER = "rgba(201,168,76,0.35)";
+const ADMIN_GLASS  = "rgba(255,255,255,0.05)";
+const CATS   = CATEGORIES.filter((c) => c !== "All");
+
+function slugify(name) {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, "").slice(0, 40);
+}
+
+function emptyForm() {
+  return {
+    id: "", name: "", category: CATS[0] || "", description: "",
+    variants: [{ label: "", price: "" }],
+    image_url: "", stock_quantity: 0, low_stock_threshold: 5,
+    batch_number: "", coa_url: "", active: true,
+  };
+}
+
+// Admin dashboard -- page id "admin". Gated by Supabase Auth.
+// Create your one admin login in Supabase: Authentication > Users > Add user.
+// There is no public sign-up screen on purpose.
+function AdminPage() {
+  const [session, setSession] = useState(undefined); // undefined = checking
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setSession(data.session));
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, sess) => setSession(sess));
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
+  if (session === undefined) return <Centered>Checking session…</Centered>;
+  return session ? <Dashboard onLogout={() => supabase.auth.signOut()} /> : <Login />;
+}
+
+function Centered({ children }) {
+  return (
+    <div style={{ padding: "140px 24px", textAlign: "center", color: "rgba(255,255,255,0.6)", fontFamily: SANS }}>
+      {children}
+    </div>
+  );
+}
+
+// ── LOGIN ─────────────────────────────────────────────────────────
+function Login() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function submit(e) {
+    e.preventDefault();
+    setErr(""); setBusy(true);
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    setBusy(false);
+    if (error) setErr(error.message);
+  }
+
+  return (
+    <div style={{ padding: "120px 24px", display: "flex", justifyContent: "center" }}>
+      <form onSubmit={submit} style={{ width: "100%", maxWidth: 360, padding: 32, border: `1px solid ${ADMIN_BORDER}`, borderRadius: 8, background: ADMIN_GLASS }}>
+        <div style={{ fontFamily: SERIF, fontSize: 26, color: GOLD, marginBottom: 24, fontWeight: 300 }}>Admin Login</div>
+        <input type="email" placeholder="Email" value={email} required onChange={(e) => setEmail(e.target.value)} style={inputStyle} />
+        <input type="password" placeholder="Password" value={password} required onChange={(e) => setPassword(e.target.value)} style={inputStyle} />
+        {err && <div style={{ color: "#e07a7a", fontSize: 12, marginBottom: 12 }}>{err}</div>}
+        <button type="submit" disabled={busy} style={buttonStyle}>{busy ? "Signing in…" : "Sign In"}</button>
+      </form>
+    </div>
+  );
+}
+
+const inputStyle = {
+  width: "100%", padding: "11px 13px", fontSize: 13, marginBottom: 12,
+  border: `1px solid ${ADMIN_BORDER}`, borderRadius: 4, background: "rgba(255,255,255,0.06)",
+  color: "#fff", fontFamily: SANS,
+};
+const buttonStyle = {
+  padding: "12px 20px", fontSize: 12, letterSpacing: 2, textTransform: "uppercase",
+  fontWeight: 600, background: GOLD, color: BLACK, border: "none", borderRadius: 4, fontFamily: SANS, cursor: "pointer",
+};
+const ghostButton = { ...buttonStyle, background: "transparent", border: `1px solid ${GOLD}`, color: GOLD };
+
+// ── DASHBOARD ───────────────────────────────────────────────────
+const TABS = [["products", "Products"], ["orders", "Orders"], ["customers", "Customers"]];
+
+function Dashboard({ onLogout }) {
+  const [tab, setTab] = useState("products");
+  return (
+    <div style={{ padding: "100px 24px 80px" }}>
+      <div style={{ maxWidth: 1100, margin: "0 auto" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
+          <div style={{ fontFamily: SERIF, fontSize: 32, color: GOLD, fontWeight: 300 }}>Admin Dashboard</div>
+          <button onClick={onLogout} style={ghostButton}>Log Out</button>
+        </div>
+
+        <div style={{ display: "flex", gap: 8, marginBottom: 28, borderBottom: `1px solid ${ADMIN_BORDER}` }}>
+          {TABS.map(([id, label]) => (
+            <button key={id} onClick={() => setTab(id)} style={{
+              padding: "10px 18px", fontSize: 11, letterSpacing: 1.5, textTransform: "uppercase",
+              fontWeight: 600, background: "none", border: "none", cursor: "pointer",
+              color: tab === id ? GOLD : "rgba(255,255,255,0.5)",
+              borderBottom: tab === id ? `2px solid ${GOLD}` : "2px solid transparent",
+              marginBottom: -1,
+            }}>{label}</button>
+          ))}
+        </div>
+
+        {tab === "products"  && <ProductsTab />}
+        {tab === "orders"    && <OrdersTab />}
+        {tab === "customers" && <CustomersTab />}
+      </div>
+    </div>
+  );
+}
+
+// ── ORDERS TAB ──────────────────────────────────────────────────
+const PAYMENT_STATUSES = ["pending", "paid", "refunded"];
+const FULFILLMENT_STATUSES = ["new", "processing", "shipped", "completed", "cancelled"];
+
+function OrdersTab() {
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState(null);
+
+  useEffect(() => { load(); }, []);
+
+  async function load() {
+    setLoading(true);
+    const { data, error } = await supabase.from("orders").select("*").order("created_at", { ascending: false });
+    if (!error) setOrders(data || []);
+    setLoading(false);
+  }
+
+  async function updateStatus(id, field, value) {
+    const { error } = await supabase.from("orders").update({ [field]: value }).eq("id", id);
+    if (error) { alert("Update failed: " + error.message); return; }
+    setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, [field]: value } : o)));
+  }
+
+  if (loading) return <Centered>Loading orders…</Centered>;
+  if (orders.length === 0) {
+    return <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 13, fontFamily: SANS }}>No orders yet — they'll show up here as soon as someone checks out.</div>;
+  }
+
+  return (
+    <div style={{ overflowX: "auto" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: SANS, fontSize: 13 }}>
+        <thead>
+          <tr style={{ borderBottom: `1px solid ${ADMIN_BORDER}`, textAlign: "left", color: GOLD, fontSize: 11, textTransform: "uppercase", letterSpacing: 1 }}>
+            <th style={th}>Date</th>
+            <th style={th}>Customer</th>
+            <th style={th}>Total</th>
+            <th style={th}>Payment</th>
+            <th style={th}>Fulfillment</th>
+            <th style={th}></th>
+          </tr>
+        </thead>
+        <tbody>
+          {orders.map((o) => (
+            <>
+              <tr key={o.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+                <td style={td}>{new Date(o.created_at).toLocaleDateString()}</td>
+                <td style={td}>
+                  <div style={{ color: "#fff" }}>{o.customer_name}</div>
+                  <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)" }}>{o.customer_email}</div>
+                  {o.guest && <div style={{ fontSize: 10, color: "rgba(255,255,255,0.4)" }}>Guest</div>}
+                </td>
+                <td style={td}>${Number(o.total).toFixed(2)}</td>
+                <td style={td}>
+                  <select value={o.payment_status} onChange={(e) => updateStatus(o.id, "payment_status", e.target.value)} style={selectStyle}>
+                    {PAYMENT_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </td>
+                <td style={td}>
+                  <select value={o.fulfillment_status} onChange={(e) => updateStatus(o.id, "fulfillment_status", e.target.value)} style={selectStyle}>
+                    {FULFILLMENT_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </td>
+                <td style={td}>
+                  <button onClick={() => setExpanded(expanded === o.id ? null : o.id)} style={{ ...ghostButton, padding: "6px 12px", fontSize: 10 }}>
+                    {expanded === o.id ? "Hide" : "Details"}
+                  </button>
+                </td>
+              </tr>
+              {expanded === o.id && (
+                <tr key={`${o.id}-detail`}>
+                  <td colSpan={6} style={{ padding: "12px 12px 20px", background: "rgba(255,255,255,0.03)" }}>
+                    <div style={{ fontSize: 12, color: "rgba(255,255,255,0.8)", lineHeight: 1.9 }}>
+                      <div><strong style={{ color: GOLD }}>Items:</strong></div>
+                      {(o.items || []).map((it, i) => (
+                        <div key={i}>— {it.name} ({it.variant_label}) x{it.qty} — ${Number(it.price * it.qty).toFixed(2)}</div>
+                      ))}
+                      <div style={{ marginTop: 8 }}>
+                        <strong style={{ color: GOLD }}>Ship to:</strong> {o.street}, {o.city}, {o.state} {o.zip}
+                      </div>
+                      {o.contact_pref && <div><strong style={{ color: GOLD }}>Preferred contact:</strong> {o.contact_pref} · {o.customer_phone}</div>}
+                      {o.promo_code && <div><strong style={{ color: GOLD }}>Promo:</strong> {o.promo_code} (-{o.discount_pct}%)</div>}
+                      {o.notes && <div><strong style={{ color: GOLD }}>Notes:</strong> {o.notes}</div>}
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ── CUSTOMERS TAB ───────────────────────────────────────────────
+function CustomersTab() {
+  const [customers, setCustomers] = useState([]);
+  const [orderStats, setOrderStats] = useState({});
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => { load(); }, []);
+
+  async function load() {
+    setLoading(true);
+    const [{ data: custData, error: custErr }, { data: orderData, error: orderErr }] = await Promise.all([
+      supabase.from("customers").select("*").order("created_at", { ascending: false }),
+      supabase.from("orders").select("customer_id, total"),
+    ]);
+    if (!custErr) setCustomers(custData || []);
+    if (!orderErr) {
+      const stats = {};
+      (orderData || []).forEach((o) => {
+        if (!o.customer_id) return;
+        if (!stats[o.customer_id]) stats[o.customer_id] = { count: 0, spent: 0 };
+        stats[o.customer_id].count += 1;
+        stats[o.customer_id].spent += Number(o.total) || 0;
+      });
+      setOrderStats(stats);
+    }
+    setLoading(false);
+  }
+
+  if (loading) return <Centered>Loading customers…</Centered>;
+  if (customers.length === 0) {
+    return <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 13, fontFamily: SANS }}>No customer accounts yet — this fills in once account sign-up is live.</div>;
+  }
+
+  return (
+    <div style={{ overflowX: "auto" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: SANS, fontSize: 13 }}>
+        <thead>
+          <tr style={{ borderBottom: `1px solid ${ADMIN_BORDER}`, textAlign: "left", color: GOLD, fontSize: 11, textTransform: "uppercase", letterSpacing: 1 }}>
+            <th style={th}>Name</th>
+            <th style={th}>Email</th>
+            <th style={th}>Phone</th>
+            <th style={th}>Orders</th>
+            <th style={th}>Total Spent</th>
+            <th style={th}>Joined</th>
+          </tr>
+        </thead>
+        <tbody>
+          {customers.map((c) => {
+            const stats = orderStats[c.id] || { count: 0, spent: 0 };
+            return (
+              <tr key={c.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+                <td style={td}>{c.name || "—"}</td>
+                <td style={td}>{c.email}</td>
+                <td style={td}>{c.phone || "—"}</td>
+                <td style={td}>{stats.count}</td>
+                <td style={td}>${stats.spent.toFixed(2)}</td>
+                <td style={td}>{new Date(c.created_at).toLocaleDateString()}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+const selectStyle = {
+  padding: "5px 8px", fontSize: 11, border: `1px solid ${ADMIN_BORDER}`, borderRadius: 4,
+  background: "rgba(255,255,255,0.06)", color: "#fff", fontFamily: SANS,
+};
+
+function ProductsTab() {
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(null); // null | "new" | product id
+  const [form, setForm] = useState(emptyForm());
+  const [saving, setSaving] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadingCoa, setUploadingCoa] = useState(false);
+
+  useEffect(() => { load(); }, []);
+
+  async function load() {
+    setLoading(true);
+    const { data, error } = await supabase.from("products").select("*").order("name", { ascending: true });
+    if (!error) setProducts(data || []);
+    setLoading(false);
+  }
+
+  function startNew() {
+    setForm(emptyForm());
+    setEditing("new");
+  }
+
+  function startEdit(p) {
+    setForm({
+      id: p.id, name: p.name, category: p.category, description: p.description || "",
+      variants: p.variants && p.variants.length ? p.variants : [{ label: "", price: "" }],
+      image_url: p.image_url || "", stock_quantity: p.stock_quantity, low_stock_threshold: p.low_stock_threshold,
+      batch_number: p.batch_number || "", coa_url: p.coa_url || "", active: p.active,
+    });
+    setEditing(p.id);
+  }
+
+  function cancelEdit() { setEditing(null); setForm(emptyForm()); }
+
+  function updateVariant(i, field, value) {
+    setForm((f) => {
+      const variants = [...f.variants];
+      variants[i] = { ...variants[i], [field]: value };
+      return { ...f, variants };
+    });
+  }
+  function addVariant() { setForm((f) => ({ ...f, variants: [...f.variants, { label: "", price: "" }] })); }
+  function removeVariant(i) { setForm((f) => ({ ...f, variants: f.variants.filter((_, idx) => idx !== i) })); }
+
+  async function uploadImage(file) {
+    if (!file) return;
+    setUploadingImage(true);
+    const id = editing === "new" ? (form.id || slugify(form.name)) : editing;
+    const path = `${id}-${Date.now()}.${file.name.split(".").pop()}`;
+    const { error } = await supabase.storage.from("product-images").upload(path, file, { upsert: true });
+    if (error) { alert("Image upload failed: " + error.message); setUploadingImage(false); return; }
+    const { data } = supabase.storage.from("product-images").getPublicUrl(path);
+    setForm((f) => ({ ...f, image_url: data.publicUrl }));
+    setUploadingImage(false);
+  }
+
+  async function uploadCoa(file) {
+    if (!file) return;
+    setUploadingCoa(true);
+    const id = editing === "new" ? (form.id || slugify(form.name)) : editing;
+    const path = `${id}-${Date.now()}.pdf`;
+    const { error } = await supabase.storage.from("coa-documents").upload(path, file, { upsert: true });
+    if (error) { alert("COA upload failed: " + error.message); setUploadingCoa(false); return; }
+    const { data } = supabase.storage.from("coa-documents").getPublicUrl(path);
+    setForm((f) => ({ ...f, coa_url: data.publicUrl }));
+    setUploadingCoa(false);
+  }
+
+  async function save() {
+    if (!form.name.trim()) { alert("Product name is required."); return; }
+    const id = editing === "new" ? (form.id.trim() ? slugify(form.id) : slugify(form.name)) : editing;
+    const cleanVariants = form.variants
+      .filter((v) => v.label.trim() && v.price !== "")
+      .map((v) => ({ label: v.label.trim(), price: Number(v.price) }));
+    if (cleanVariants.length === 0) { alert("Add at least one price/variant."); return; }
+
+    setSaving(true);
+    const payload = {
+      id, name: form.name.trim(), category: form.category, description: form.description,
+      variants: cleanVariants, image_url: form.image_url || null,
+      stock_quantity: Number(form.stock_quantity) || 0,
+      low_stock_threshold: Number(form.low_stock_threshold) || 0,
+      batch_number: form.batch_number || null, coa_url: form.coa_url || null,
+      active: form.active,
+      ...(form.coa_url ? { coa_uploaded_at: new Date().toISOString() } : {}),
+    };
+    const { error } = await supabase.from("products").upsert(payload);
+    setSaving(false);
+    if (error) { alert("Save failed: " + error.message); return; }
+    cancelEdit();
+    load();
+  }
+
+  async function remove(id) {
+    if (!confirm("Delete this product permanently? This can't be undone.")) return;
+    const { error } = await supabase.from("products").delete().eq("id", id);
+    if (error) { alert("Delete failed: " + error.message); return; }
+    load();
+  }
+
+  if (loading) return <Centered>Loading products…</Centered>;
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 20 }}>
+        <button onClick={startNew} style={buttonStyle}>+ Add Product</button>
+      </div>
+
+      {editing && (
+          <ProductForm
+            form={form} setForm={setForm} isNew={editing === "new"}
+            onUpdateVariant={updateVariant} onAddVariant={addVariant} onRemoveVariant={removeVariant}
+            onUploadImage={uploadImage} onUploadCoa={uploadCoa}
+            uploadingImage={uploadingImage} uploadingCoa={uploadingCoa}
+            onSave={save} onCancel={cancelEdit} saving={saving}
+          />
+        )}
+
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: SANS, fontSize: 13 }}>
+            <thead>
+              <tr style={{ borderBottom: `1px solid ${ADMIN_BORDER}`, textAlign: "left", color: GOLD, fontSize: 11, textTransform: "uppercase", letterSpacing: 1 }}>
+                <th style={th}></th>
+                <th style={th}>Product</th>
+                <th style={th}>Price</th>
+                <th style={th}>Stock</th>
+                <th style={th}>COA</th>
+                <th style={th}>Status</th>
+                <th style={th}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {products.map((p) => {
+                const low = p.stock_quantity <= p.low_stock_threshold;
+                const prices = (p.variants || []).map((v) => v.price);
+                const priceLabel = prices.length ? `$${Math.min(...prices)}${prices.length > 1 ? `–$${Math.max(...prices)}` : ""}` : "—";
+                return (
+                  <tr key={p.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+                    <td style={td}>
+                      {p.image_url
+                        ? <img src={p.image_url} alt={p.name} style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 4, border: `1px solid ${ADMIN_BORDER}` }} />
+                        : <div style={{ width: 40, height: 40, borderRadius: 4, border: `1px dashed ${ADMIN_BORDER}`, opacity: 0.4 }} />}
+                    </td>
+                    <td style={td}>
+                      <div style={{ color: "#fff" }}>{p.name}</div>
+                      <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)" }}>{p.category}</div>
+                      {low && <div style={{ color: "#e0a84a", fontSize: 11, marginTop: 2 }}>Low stock</div>}
+                    </td>
+                    <td style={td}>{priceLabel}</td>
+                    <td style={td}>{p.stock_quantity}</td>
+                    <td style={td}>{p.coa_url ? <a href={p.coa_url} target="_blank" rel="noopener noreferrer" style={{ color: GOLD }}>View</a> : <span style={{ color: "rgba(255,255,255,0.4)" }}>None</span>}</td>
+                    <td style={td}>{p.active ? <span style={{ color: "#7fd48a" }}>Active</span> : <span style={{ color: "rgba(255,255,255,0.4)" }}>Hidden</span>}</td>
+                    <td style={td}>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <button onClick={() => startEdit(p)} style={{ ...ghostButton, padding: "6px 12px", fontSize: 10 }}>Edit</button>
+                        <button onClick={() => remove(p.id)} style={{ ...ghostButton, padding: "6px 12px", fontSize: 10, borderColor: "#e07a7a", color: "#e07a7a" }}>Delete</button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+    </div>
+  );
+}
+
+function ProductForm({
+  form, setForm, isNew, onUpdateVariant, onAddVariant, onRemoveVariant,
+  onUploadImage, onUploadCoa, uploadingImage, uploadingCoa, onSave, onCancel, saving,
+}) {
+  return (
+    <div style={{ border: `1px solid ${ADMIN_BORDER}`, borderRadius: 8, background: ADMIN_GLASS, padding: 24, marginBottom: 32 }}>
+      <div style={{ fontFamily: SERIF, fontSize: 20, color: GOLD, marginBottom: 18, fontWeight: 300 }}>
+        {isNew ? "New Product" : `Editing: ${form.name}`}
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 4 }}>
+        <div>
+          <label style={labelStyle}>Name</label>
+          <input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} style={inputStyle} />
+        </div>
+        <div>
+          <label style={labelStyle}>Category</label>
+          <select value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))} style={inputStyle}>
+            {CATS.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+      </div>
+
+      <label style={labelStyle}>Description</label>
+      <textarea value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+        rows={3} style={{ ...inputStyle, resize: "vertical" }} />
+
+      <label style={labelStyle}>Pricing / Variants</label>
+      {form.variants.map((v, i) => (
+        <div key={i} style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center" }}>
+          <input placeholder="Label, e.g. 10mg" value={v.label} onChange={(e) => onUpdateVariant(i, "label", e.target.value)} style={{ ...inputStyle, marginBottom: 0, flex: 1 }} />
+          <input placeholder="Price" type="number" value={v.price} onChange={(e) => onUpdateVariant(i, "price", e.target.value)} style={{ ...inputStyle, marginBottom: 0, width: 100 }} />
+          {form.variants.length > 1 && (
+            <button onClick={() => onRemoveVariant(i)} style={{ color: "#e07a7a", background: "none", border: "none", cursor: "pointer", fontSize: 16 }}>✕</button>
+          )}
+        </div>
+      ))}
+      <button onClick={onAddVariant} style={{ ...ghostButton, padding: "6px 14px", fontSize: 10, marginBottom: 16 }}>+ Add Variant</button>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginBottom: 4 }}>
+        <div>
+          <label style={labelStyle}>Stock Quantity</label>
+          <input type="number" value={form.stock_quantity} onChange={(e) => setForm((f) => ({ ...f, stock_quantity: e.target.value }))} style={inputStyle} />
+        </div>
+        <div>
+          <label style={labelStyle}>Low Stock Alert At</label>
+          <input type="number" value={form.low_stock_threshold} onChange={(e) => setForm((f) => ({ ...f, low_stock_threshold: e.target.value }))} style={inputStyle} />
+        </div>
+        <div>
+          <label style={labelStyle}>Batch / Lot #</label>
+          <input value={form.batch_number} onChange={(e) => setForm((f) => ({ ...f, batch_number: e.target.value }))} style={inputStyle} />
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
+        <div>
+          <label style={labelStyle}>Product Photo</label>
+          {form.image_url && <img src={form.image_url} alt="" style={{ width: 60, height: 60, objectFit: "cover", borderRadius: 6, marginBottom: 8, border: `1px solid ${ADMIN_BORDER}` }} />}
+          <input type="file" accept="image/*" onChange={(e) => onUploadImage(e.target.files[0])} style={{ fontSize: 12, color: "rgba(255,255,255,0.7)" }} />
+          {uploadingImage && <div style={{ fontSize: 11, color: GOLD, marginTop: 4 }}>Uploading…</div>}
+        </div>
+        <div>
+          <label style={labelStyle}>Certificate of Analysis (PDF)</label>
+          {form.coa_url && <div style={{ marginBottom: 8 }}><a href={form.coa_url} target="_blank" rel="noopener noreferrer" style={{ color: GOLD, fontSize: 12 }}>View current COA</a></div>}
+          <input type="file" accept="application/pdf" onChange={(e) => onUploadCoa(e.target.files[0])} style={{ fontSize: 12, color: "rgba(255,255,255,0.7)" }} />
+          {uploadingCoa && <div style={{ fontSize: 11, color: GOLD, marginTop: 4 }}>Uploading…</div>}
+        </div>
+      </div>
+
+      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "rgba(255,255,255,0.85)", marginBottom: 20, cursor: "pointer" }}>
+        <input type="checkbox" checked={form.active} onChange={(e) => setForm((f) => ({ ...f, active: e.target.checked }))} />
+        Visible on storefront
+      </label>
+
+      <div style={{ display: "flex", gap: 12 }}>
+        <button onClick={onSave} disabled={saving} style={buttonStyle}>{saving ? "Saving…" : "Save Product"}</button>
+        <button onClick={onCancel} style={ghostButton}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+const labelStyle = { display: "block", fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", color: "rgba(255,255,255,0.55)", marginBottom: 6, marginTop: 10 };
+const th = { padding: "10px 12px" };
+const td = { padding: "10px 12px", verticalAlign: "top" };
 
 // ── CONFIG ──────────────────────────────────────────────────────
 const FORMSPREE  = "https://formspree.io/f/xvzyzgqa";
@@ -323,7 +1056,7 @@ function GoldBorderFrame() {
 // ── NAV ─────────────────────────────────────────────────────────
 const LINKS = [
   ["Products","products"],["Stacks","stacks"],["Calculator","calculator"],
-  ["How To Use","howto"],["About","about"],["Contact","contact"],
+  ["How To Use","howto"],["About","about"],["Lab Results","labresults"],["Contact","contact"],
 ];
 
 function Nav({ count, onCart, setPage, page }) {
@@ -475,7 +1208,10 @@ function Footer({ setPage }) {
           <p style={{ fontSize:11, color:"rgba(255,255,255,.78)", lineHeight:1.8, maxWidth:700 }}>
             All products are strictly for research and educational purposes only. Not intended for human consumption. These statements have not been evaluated by the FDA. Always consult a licensed healthcare professional before any wellness protocol. For adults 18+ only.
           </p>
-          <div style={{ fontSize:11, color:"rgba(255,255,255,.70)" }}>© {new Date().getFullYear()} TruPep Wellness</div>
+          <div style={{ display:"flex", alignItems:"center", gap:16 }}>
+            <div style={{ fontSize:11, color:"rgba(255,255,255,.70)" }}>© {new Date().getFullYear()} TruPep Wellness</div>
+            <button onClick={() => setPage("admin")} style={{ fontSize:10, color:"rgba(255,255,255,.35)", background:"none", border:"none", cursor:"pointer" }}>Admin</button>
+          </div>
         </div>
       </div>
     </footer>
@@ -554,6 +1290,7 @@ function EmailPopup({ onClose }) {
 const SHIPPING_STANDARD = 15;
 
 function CartDrawer({ cart, total, onClose, onRemove, onQty, onAdd }) {
+  const { products: PRODUCTS } = useProducts();
   const [step,     setStep]     = useState("cart");
   const [promo,    setPromo]    = useState("");
   const [discount, setDiscount] = useState(0);
@@ -584,6 +1321,33 @@ function CartDrawer({ cart, total, onClose, onRemove, onQty, onAdd }) {
     const orderLines = cart.map(i =>
       `${i.name} (${i.variant.label}) x${i.qty} — ${fmt(i.variant.price * i.qty)}`
     ).join("\n");
+
+    // Save the order to Supabase so it shows up in the admin dashboard --
+    // guest order for now (customer_id stays null until accounts exist).
+    try {
+      await supabase.from("orders").insert({
+        customer_id: null,
+        guest: true,
+        customer_name: form.name,
+        customer_email: form.email,
+        customer_phone: form.phone,
+        street: form.street, city: form.city, state: form.state, zip: form.zip,
+        contact_pref: form.contact_pref || null,
+        items: cart.map(i => ({
+          product_id: i.key.split("::")[0], name: i.name,
+          variant_label: i.variant.label, price: i.variant.price, qty: i.qty,
+        })),
+        subtotal: total,
+        discount_pct: discount,
+        shipping_cost: shippingFee,
+        total: grandTotal,
+        promo_code: discount ? promo.trim().toUpperCase() : null,
+        notes: form.notes || null,
+      });
+    } catch (_) {
+      // Non-blocking -- Formspree/mailto below is still the source of truth
+      // for actually getting notified about the order.
+    }
 
     const payload = {
       ...form,
@@ -672,7 +1436,7 @@ function CartDrawer({ cart, total, onClose, onRemove, onQty, onAdd }) {
                   ))}
 
                   {/* BAC Water upsell */}
-                  {!cart.some(i => i.name === "BAC Water") && (
+                  {!cart.some(i => i.name === "BAC Water") && PRODUCTS.find(p => p.id === "bacwater") && (
                     <div style={{ background:`linear-gradient(135deg, rgba(201,168,76,.08), rgba(201,168,76,.04))`, border:`1px solid ${GOLD}`, borderLeft:`3px solid ${GOLD}`, padding:"14px 16px", marginBottom:18, borderRadius:3 }}>
                       <div style={{ fontSize:9, letterSpacing:2, color:GOLD, textTransform:"uppercase", marginBottom:5 }}>Required for Reconstitution</div>
                       <div style={{ fontSize:11, marginBottom:10, lineHeight:1.7, color:DIM }}>Don't forget <strong style={{ color:WHITE }}>BAC Water</strong> — needed to reconstitute every vial before use.</div>
@@ -850,6 +1614,10 @@ function ProductCard({ product, onAdd, idx = 0 }) {
       >
         {/* Dot inside overflow:hidden — fully contained */}
         <div style={dot} />
+        {product.image_url && (
+          <img src={product.image_url} alt={product.name}
+            style={{ width:"100%", height:160, objectFit:"cover", borderRadius:4, marginBottom:16, border:`1px solid ${BORDER}` }} />
+        )}
         <div style={{ fontSize:10, letterSpacing:3, color:GOLD, textTransform:"uppercase", marginBottom:8 }}>{product.cat}</div>
         <div style={{ fontFamily:SERIF, fontSize:22, marginBottom:10 }}>{product.name}</div>
         <div style={{ fontSize:13, color:"rgba(255,255,255,0.90)", lineHeight:1.85, flex:1, marginBottom:18 }}>{product.desc}</div>
@@ -886,7 +1654,8 @@ function ProductCard({ product, onAdd, idx = 0 }) {
 // ── HOME PAGE ───────────────────────────────────────────────────
 function HomePage({ setPage, onAdd }) {
   useReveal();
-  const featured = PRODUCTS.filter(p => ["retatrutide","bpc157","nad","tb500"].includes(p.id));
+  const { products } = useProducts();
+  const featured = products.filter(p => ["retatrutide","bpc157","nad","tb500"].includes(p.id));
   return (
     <>
       {/* Hero */}
@@ -1004,9 +1773,10 @@ function HomePage({ setPage, onAdd }) {
 // ── PRODUCTS PAGE ───────────────────────────────────────────────
 function ProductsPage({ onAdd }) {
   useReveal();
+  const { products, loading } = useProducts();
   const [search, setSearch] = useState("");
   const [cat,    setCat]    = useState("All");
-  const filtered = PRODUCTS.filter(p =>
+  const filtered = products.filter(p =>
     (cat === "All" || p.cat === cat) &&
     p.name.toLowerCase().includes(search.toLowerCase())
   );
@@ -1039,10 +1809,13 @@ function ProductsPage({ onAdd }) {
           ))}
         </div>
 
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))", gap:24 }}>
-          {filtered.map((p, i) => <ProductCard key={p.id} product={p} onAdd={onAdd} idx={i} />)}
-        </div>
-        {filtered.length === 0 && <div style={{ textAlign:"center", padding:70, color:DIM2, fontSize:12 }}>No compounds found.</div>}
+        {loading && <div style={{ textAlign:"center", padding:70, color:DIM2, fontSize:12 }}>Loading compounds…</div>}
+        {!loading && (
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))", gap:24 }}>
+            {filtered.map((p, i) => <ProductCard key={p.id} product={p} onAdd={onAdd} idx={i} />)}
+          </div>
+        )}
+        {!loading && filtered.length === 0 && <div style={{ textAlign:"center", padding:70, color:DIM2, fontSize:12 }}>No compounds found.</div>}
       </div>
     </div>
   );
@@ -1050,6 +1823,7 @@ function ProductsPage({ onAdd }) {
 
 // ── STACKS PAGE ─────────────────────────────────────────────────
 function StacksPage({ setPage }) {
+  const { products: PRODUCTS } = useProducts();
   useReveal();
   const [active, setActive] = useState(null);
   return (
@@ -1827,6 +2601,8 @@ function App() {
         {page === "terms"      && <LegalPage title="Terms of Service"    sections={TERMS} />}
         {page === "privacy"    && <LegalPage title="Privacy Policy"      sections={PRIVACY} />}
         {page === "disclaimer" && <LegalPage title="Research Disclaimer" sections={DISCLAIMER} />}
+        {page === "labresults" && <LabResultsPage />}
+        {page === "admin"      && <AdminPage />}
       </main>
       <Footer setPage={setPageAndScroll} />
       {cartOpen && <CartDrawer cart={cart} total={total} onClose={() => setCartOpen(false)} onRemove={remove} onQty={setQty} onAdd={add} />}
@@ -1836,4 +2612,8 @@ function App() {
   );
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+ReactDOM.createRoot(document.getElementById("root")).render(
+  <ProductsProvider>
+    <App />
+  </ProductsProvider>
+);
