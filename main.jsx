@@ -145,9 +145,9 @@ const OK     = "var(--ok)";
 const ERR    = "var(--err)";
 const SERIF  = "'Cormorant Garamond', serif";
 const SANS   = "'Montserrat', sans-serif";
-const DIM    = fg(0.88);
-const DIM2   = fg(0.68);
-const DIM3   = fg(0.52);
+const DIM    = "var(--dim)";
+const DIM2   = "var(--dim2)";
+const DIM3   = "var(--dim3)";
 const BORDER = "var(--border)";
 const GLASS  = "var(--glass)";
 const GLASS2 = "var(--glass2)";
@@ -158,6 +158,7 @@ const G = `
   :root{
     --bg:#0A0A0A; --bg2:#101010;
     --fg:#FFFFFF; --fg-rgb:255,255,255; --ink:#0A0A0A;
+    --dim:rgba(255,255,255,.88); --dim2:rgba(255,255,255,.68); --dim3:rgba(255,255,255,.52);
     --gold:#F0C84A; --gold-rgb:240,200,74; --gold2:#F5D980;
     --gold-fill:#F0C84A; --gold-fill2:#F5D980; --gold-deep:#B8922E;
     --line-rgb:201,168,76;
@@ -177,13 +178,14 @@ const G = `
   :root[data-theme="light"]{
     --bg:#FAF6EE; --bg2:#F2EBDB;
     --fg:#1B160C; --fg-rgb:27,22,12; --ink:#14110A;
-    --gold:#85620F; --gold-rgb:133,98,15; --gold2:#A9801C;
+    --dim:rgba(27,22,12,.96); --dim2:rgba(27,22,12,.84); --dim3:rgba(27,22,12,.70);
+    --gold:#6E510A; --gold-rgb:110,81,10; --gold2:#8A6A12;
     --gold-fill:#D4AF37; --gold-fill2:#E7C96B; --gold-deep:#B08C1C;
     --line-rgb:150,115,30;
-    --border:rgba(150,115,30,.32); --border-strong:rgba(150,115,30,.62);
-    --glass:rgba(255,255,255,.62); --glass2:#FFFFFF;
-    --card-bg:#FFFFFF;
-    --card-shadow:0 1px 2px rgba(80,55,10,.06),0 10px 30px rgba(80,55,10,.07);
+    --border:rgba(110,81,10,.45); --border-strong:rgba(110,81,10,.75);
+    --glass:#FFFFFF; --glass2:#FFFFFF;
+    --card-bg:linear-gradient(180deg,#FFFFFF,#FDFBF4);
+    --card-shadow:0 1px 2px rgba(80,55,10,.09),0 12px 32px rgba(80,55,10,.11);
     --card-shadow-hover:0 20px 48px rgba(80,55,10,.15),0 0 0 1px rgba(133,98,15,.3);
     --input-bg:#FFFFFF;
     --nav-bg:rgba(250,246,238,.82); --nav-bg-solid:rgba(250,246,238,.97);
@@ -308,6 +310,11 @@ const G = `
   .card-hover:hover .media img{transform:scale(1.045)}
   .ph{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;background:radial-gradient(ellipse at 50% 38%,rgba(var(--gold-rgb),.2),transparent 68%),linear-gradient(160deg,var(--bg2),var(--bg))}
   html[data-theme="light"] .ph{background:radial-gradient(ellipse at 50% 38%,rgba(var(--gold-rgb),.16),transparent 70%),linear-gradient(160deg,#FFFDF8,#F3EBD9)}
+  /* light-mode readability: stronger small text + bolder card copy */
+  html[data-theme="light"] .chip,html[data-theme="light"] .pill,html[data-theme="light"] .nav-link,html[data-theme="light"] .seg button,html[data-theme="light"] .theme-btn,html[data-theme="light"] .eyebrow{font-weight:700}
+  html[data-theme="light"] .dd-item .sub,html[data-theme="light"] .ph-brand{font-weight:600}
+  html[data-theme="light"] .card p{font-weight:500}
+  html[data-theme="light"] .input::placeholder{color:rgba(27,22,12,.6)}
   .ph-ring{width:62%;aspect-ratio:1;max-width:150px;border-radius:50%;border:1px solid var(--border-strong);display:flex;align-items:center;justify-content:center;box-shadow:inset 0 0 40px rgba(var(--gold-rgb),.1)}
   .ph-mono{font-family:${SERIF};font-size:clamp(44px,9vw,68px);font-weight:300;color:var(--gold);line-height:1}
   .ph-brand{font-size:8px;letter-spacing:.42em;text-transform:uppercase;color:${DIM3}}
