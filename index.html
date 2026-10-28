@@ -1,16 +1,45 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>TruPep Wellness | Advanced Peptide Wellness</title>
-    <meta name="description" content="Miami's premier advanced peptide wellness source. 25 research compounds, 7 curated stacks, expert consultation." />
+    <meta name="description" content="Miami's premier advanced peptide wellness source. Research-grade compounds, curated stacks, and free consultation." />
+    <meta name="theme-color" content="#0A0A0A" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/favicon.png" />
+    <link rel="canonical" href="https://www.trupepwellness.com/" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="TruPep Wellness" />
+    <meta property="og:title" content="TruPep Wellness | Advanced Peptide Wellness" />
+    <meta property="og:description" content="Miami's premier advanced peptide wellness source. Research-grade compounds, curated stacks, and free consultation." />
+    <meta property="og:url" content="https://www.trupepwellness.com/" />
+    <meta property="og:image" content="https://www.trupepwellness.com/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="TruPep Wellness | Advanced Peptide Wellness" />
+    <meta name="twitter:description" content="Miami's premier advanced peptide wellness source. Research-grade compounds, curated stacks, and free consultation." />
+    <meta name="twitter:image" content="https://www.trupepwellness.com/og-image.png" />
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500&family=Montserrat:wght@400;500;600&display=swap" rel="stylesheet" />
-    <style>body{margin:0;background:#0A0A0A}</style>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600&family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <script>
+      // Apply the saved theme/language before first paint so there is no flash.
+      try {
+        var th = localStorage.getItem("tp_theme");
+        if (th === "light" || th === "dark") document.documentElement.setAttribute("data-theme", th);
+        if (th === "light") document.querySelector('meta[name="theme-color"]').setAttribute("content", "#FAF6EE");
+        if (localStorage.getItem("tp_lang") === "es") document.documentElement.lang = "es";
+      } catch (e) {}
+    </script>
+    <style>body{margin:0;background:#0A0A0A}html[data-theme="light"] body{background:#FAF6EE}</style>
   </head>
   <body>
+    <noscript>TruPep Wellness requires JavaScript. Research compounds only — not for human consumption.</noscript>
     <div id="root"></div>
     <script type="module" src="/main.jsx"></script>
   </body>
