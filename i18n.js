@@ -1148,6 +1148,7 @@ function dig(obj, path) {
 }
 
 function fill(str, vars) {
+  if (Array.isArray(str)) return str.map((s) => fill(s, vars));
   if (typeof str !== "string" || !vars) return str;
   return str.replace(/\{(\w+)\}/g, (_, k) => (vars[k] !== undefined ? vars[k] : `{${k}}`));
 }
