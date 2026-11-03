@@ -1054,6 +1054,11 @@ function ReviewsSection() {
     return () => { live = false; };
   }, []);
 
+  // Review cards render only after the fetch lands, which can be after the
+  // page's reveal sweep already ran — re-run the sweep when reviews arrive
+  // or the cards stay invisible (opacity 0).
+  useReveal(reviews.length);
+
   async function submit(e) {
     e.preventDefault();
     setError("");
