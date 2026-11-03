@@ -110,7 +110,7 @@ function flushAnalytics() {
 function track(type, slug, extra) {
   try {
     if (analytics.off || !ANALYTICS_TYPES.has(type) || !supabaseUrl) return;
-    if (window.location.hash.includes(ADMIN_ROUTE)) return; // never track the admin area
+    if (window.location.hash.includes(ADMIN_ROUTE) || window.location.pathname.split("/").filter(Boolean)[0] === ADMIN_ROUTE) return; // never track the admin area
     const row = { event_type: type, item_slug: slug ? String(slug).slice(0, 60) : null, search_term: null, meta: { s: analyticsSession(), l: document.documentElement.lang || "en", w: window.innerWidth < 700 ? "m" : "d", ...(extra || {}) } };
     if (type === "search") { row.search_term = cleanSearchTerm(slug); row.item_slug = null; if (!row.search_term) return; }
     analytics.queue.push(row);
@@ -406,6 +406,9 @@ function Rich({ text, color = GOLD }) {
 const PAGES = new Set(["home","products","stacks","calculator","howto","faq","about","contact","shipping","returns","terms","privacy","disclaimer","labresults","account"]);
 
 function routeFromHash() {
+  // Clean-URL alias: /admin (served via a Vercel rewrite) opens the admin page.
+  const pathFirst = window.location.pathname.split("/").filter(Boolean)[0] || "";
+  if (pathFirst === ADMIN_ROUTE) return { page: "admin", param: null, query: {} };
   const raw = window.location.hash.replace(/^#\/?/, "");
   const [pathPart, queryPart = ""] = raw.split("?");
   let segs = [];
