@@ -52,13 +52,6 @@ const PROMO_CODES = {
   ULTRAVIP50:50, DIAMOND55:55,
 };
 
-const TESTIMONIALS = [
-  { name:"Marcus R.",  stars:5, text:"Down 34 lbs in 12 weeks on the weight loss stack. The results speak for themselves." },
-  { name:"Sophia L.",  stars:5, text:"My skin has never looked better. The glow stack completely transformed my complexion." },
-  { name:"James T.",   stars:5, text:"Recovery time cut in half after switching to BPC-157 and TB-500. Total game changer." },
-  { name:"Daniela M.", stars:5, text:"The cognitive stack keeps me sharp during 14-hour trading sessions. Remarkable clarity." },
-  { name:"Rafael C.",  stars:5, text:"TruPep's quality and customer service are unmatched. Loyal customer for life." },
-];
 
 const VIDEOS = [
   { id:"n8vk8DfwRHg", title:"How To Properly Reconstitute Peptides" },
@@ -952,6 +945,185 @@ function IntroPage() {
 }
 
 // ── HOME ────────────────────────────────────────────────────────
+// ── REVIEWS (moderated) ─────────────────────────────────────────────
+// Public reviews: anyone can submit (name, stars, words, optional photo),
+// but nothing shows here until Tristan approves it in Admin → Reviews.
+// Pending reviews are never readable through the public client — the
+// database only serves approved rows to anonymous visitors.
+function ReviewsBlock() {
+  const { lang, t } = useI18n();
+  const [reviews, setReviews] = useState([]);
+  const [loaded, setLoaded] = useState(false);
+  const [name, setName] = useState("");
+  const [rating, setRating] = useState(5);
+  const [body, setBody] = useState("");
+  const [photo, setPhoto] = useState(null);
+  const [photoName, setPhotoName] = useState("");
+  const [state, setState] = useState("idle"); // idle | sending | sent | error | photo-error
+  const [errText, setErrText] = useState("");
+
+  useEffect(() => {
+    supabase
+      .from("reviews")
+      .select("id,created_at,name,rating,body,photo_url")
+      .eq("status", "approved")
+      .order("created_at", { ascending: false })
+      .limit(50)
+      .then(({ data, error }) => {
+        if (!error) setReviews(data || []);
+        setLoaded(true);
+      });
+  }, []);
+
+  async function submit(e) {
+    e.preventDefault();
+    if (state === "sending") return;
+    const fd = new FormData(e.currentTarget);
+    // Honeypot: bots fill it, people never see it. Pretend success.
+    if (String(fd.get("website") || "").trim() !== "") {
+      setState("sent");
+      return;
+    }
+    if (name.trim().length < 2 || name.trim().length > 60 || body.trim().length < 10 || body.trim().length > 2000) {
+      setErrText(t("home.reviewsError"));
+      setState("error");
+      return;
+    }
+    setState("sending");
+    setErrText("");
+    let photo_url = null;
+    if (photo) {
+      const okType = ["image/jpeg", "image/png", "image/webp"].includes(photo.type);
+      if (!okType || photo.size > 5 * 1024 * 1024) {
+        setState("photo-error");
+        return;
+      }
+      const ext = photo.type === "image/png" ? "png" : photo.type === "image/webp" ? "webp" : "jpg";
+      const uid = typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const path = `${uid}.${ext}`;
+      const { error: upErr } = await supabase.storage.from("review-photos").upload(path, photo);
+      if (upErr) {
+        setErrText(t("home.reviewsError") + " (" + upErr.message + ")");
+        setState("error");
+        return;
+      }
+      photo_url = supabase.storage.from("review-photos").getPublicUrl(path).data.publicUrl;
+    }
+    // Errors are shown, never swallowed: a failed submit must tell the visitor.
+    const { error } = await supabase.from("reviews").insert({
+      name: name.trim(),
+      rating,
+      body: body.trim(),
+      photo_url,
+      status: "pending",
+    });
+    if (error) {
+      setErrText(t("home.reviewsError") + " (" + error.message + ")");
+      setState("error");
+      return;
+    }
+    setState("sent");
+  }
+
+  const dateFmt = (iso) =>
+    new Date(iso).toLocaleDateString(lang === "es" ? "es-US" : "en-US", { year: "numeric", month: "long", day: "numeric" });
+
+  if (state === "sent") {
+    return (
+      <div style={{ maxWidth: 640, margin: "0 auto", textAlign: "center" }}>
+        <h3 style={{ fontFamily: SERIF, fontSize: 26, marginBottom: 10 }}>{t("home.reviewsFormTitle")}</h3>
+        <p style={{ fontSize: 14, color: DIM, lineHeight: 1.9 }}>{t("home.reviewsThanks")}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      {loaded && reviews.length > 0 ? (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(270px,1fr))", gap: 22, marginBottom: 56 }}>
+          {reviews.map((r) => (
+            <figure key={r.id} className="card reveal" style={{ padding: 28, margin: 0 }}>
+              <div style={{ color: GOLD, marginBottom: 12, fontSize: 15, letterSpacing: 3 }} aria-label={t("home.reviewsStars", { n: r.rating })}>
+                {"★".repeat(r.rating)}
+                {"☆".repeat(5 - r.rating)}
+              </div>
+              <blockquote style={{ fontSize: 13.5, color: DIM, lineHeight: 1.9, marginBottom: 16 }}>“{r.body}”</blockquote>
+              {r.photo_url && (
+                <img src={r.photo_url} alt="" loading="lazy" style={{ width: "100%", borderRadius: 4, marginBottom: 14, display: "block" }} />
+              )}
+              <figcaption style={{ fontSize: 11, letterSpacing: "0.18em", color: DIM2 }}>
+                — {r.name} · {dateFmt(r.created_at)}
+              </figcaption>
+            </figure>
+          ))}
+        </div>
+      ) : loaded ? (
+        <p style={{ textAlign: "center", color: DIM, marginBottom: 48 }}>{t("home.reviewsEmpty")}</p>
+      ) : null}
+
+      <div style={{ maxWidth: 640, margin: "0 auto" }}>
+        <h3 style={{ fontFamily: SERIF, fontSize: 26, textAlign: "center", marginBottom: 24 }}>{t("home.reviewsFormTitle")}</h3>
+        <form onSubmit={submit}>
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: "block", fontSize: 11, letterSpacing: "0.18em", color: DIM2, marginBottom: 8 }}>{t("home.reviewsName")}</label>
+            <input className="input" style={{ width: "100%" }} required minLength={2} maxLength={60} placeholder={t("home.reviewsNamePh")} value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" />
+          </div>
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: "block", fontSize: 11, letterSpacing: "0.18em", color: DIM2, marginBottom: 8 }}>{t("home.reviewsRating")}</label>
+            <div role="radiogroup" aria-label={t("home.reviewsRating")} style={{ display: "flex", gap: 6 }}>
+              {[1, 2, 3, 4, 5].map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  role="radio"
+                  aria-checked={rating === n}
+                  aria-label={t("home.reviewsStars", { n })}
+                  onClick={() => setRating(n)}
+                  style={{
+                    fontSize: 26, lineHeight: 1, padding: "6px 8px", background: "transparent",
+                    border: `1px solid ${BORDER}`, borderRadius: 6, cursor: "pointer",
+                    color: n <= rating ? GOLD : DIM2,
+                  }}
+                >
+                  ★
+                </button>
+              ))}
+            </div>
+          </div>
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: "block", fontSize: 11, letterSpacing: "0.18em", color: DIM2, marginBottom: 8 }}>{t("home.reviewsText")}</label>
+            <textarea className="input" style={{ width: "100%", minHeight: 120 }} required minLength={10} maxLength={2000} placeholder={t("home.reviewsTextPh")} value={body} onChange={(e) => setBody(e.target.value)} rows={5} />
+          </div>
+          <div style={{ marginBottom: 8 }}>
+            <label style={{ display: "block", fontSize: 11, letterSpacing: "0.18em", color: DIM2, marginBottom: 8 }}>{t("home.reviewsPhoto")}</label>
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={(e) => {
+                const f = e.target.files?.[0] || null;
+                setPhoto(f);
+                setPhotoName(f ? f.name : "");
+              }}
+            />
+            <div style={{ fontSize: 12.5, color: DIM2, marginTop: 6 }}>{t("home.reviewsPhotoHint")}</div>
+            {photoName && <div style={{ fontSize: 12.5, color: DIM2 }}>{photoName}</div>}
+          </div>
+          <input name="website" tabIndex={-1} autoComplete="off" aria-hidden="true" style={{ display: "none" }} />
+          {state === "error" && (
+            <p role="alert" style={{ color: "#e5484d", fontSize: 13.5, marginBottom: 12 }}>{errText || t("home.reviewsError")}</p>
+          )}
+          {state === "photo-error" && (
+            <p role="alert" style={{ color: "#e5484d", fontSize: 13.5, marginBottom: 12 }}>{t("home.reviewsErrorPhoto")}</p>
+          )}
+          <button type="submit" className="btn btn-gold" disabled={state === "sending"} style={{ width: "100%" }}>
+            {state === "sending" ? t("home.reviewsSending") : t("home.reviewsSubmit")}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function HomePage({ onAdd }) {
   const { t } = useI18n();
   const { go } = useRouter();
@@ -1014,16 +1186,8 @@ function HomePage({ onAdd }) {
 
       <section style={{ padding: "76px 24px 84px", background: "var(--bg2)", borderTop: `1px solid ${BORDER}`, borderBottom: `1px solid ${BORDER}` }}>
         <div className="wrap">
-          <SectionHead eyebrow={t("home.testimonialsEyebrow")} title={t("home.testimonialsTitle")} />
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(270px,1fr))", gap: 22 }}>
-            {TESTIMONIALS.map((q, i) => (
-              <figure key={i} className="card reveal" style={{ padding: 28, margin: 0 }}>
-                <div style={{ color: GOLD, marginBottom: 12, fontSize: 15, letterSpacing: 3 }} aria-label={`${q.stars} / 5`}>{"★".repeat(q.stars)}</div>
-                <blockquote style={{ fontSize: 13.5, color: DIM, lineHeight: 1.9, marginBottom: 16 }}>“{q.text}”</blockquote>
-                <figcaption style={{ fontSize: 11, letterSpacing: "0.18em", color: DIM2 }}>— {q.name}</figcaption>
-              </figure>
-            ))}
-          </div>
+          <SectionHead eyebrow={t("home.reviewsEyebrow")} title={t("home.reviewsTitle")} />
+          <ReviewsBlock />
         </div>
       </section>
 
@@ -2129,10 +2293,16 @@ const buttonStyle = {
 const ghostButton = { ...buttonStyle, background: "transparent", border: `1px solid ${GOLD}`, color: GOLD };
 
 // ── DASHBOARD ───────────────────────────────────────────────────
-const TABS = [["products", "Products"], ["orders", "Orders"], ["customers", "Customers"], ["analytics", "Analytics"]];
+const TABS = [["products", "Products"], ["orders", "Orders"], ["customers", "Customers"], ["analytics", "Analytics"], ["reviews", "Reviews"]];
 
 function Dashboard({ onLogout }) {
   const [tab, setTab] = useState("products");
+  const [pendingReviews, setPendingReviews] = useState(0);
+  const loadPendingReviews = useCallback(async () => {
+    const { data } = await supabase.from("reviews").select("id").eq("status", "pending").limit(5000);
+    setPendingReviews(data ? data.length : 0);
+  }, []);
+  useEffect(() => { loadPendingReviews(); }, [loadPendingReviews]);
   return (
     <div style={{ padding: "100px 24px 80px" }}>
       <div style={{ maxWidth: 1100, margin: "0 auto" }}>
@@ -2149,7 +2319,7 @@ function Dashboard({ onLogout }) {
               color: tab === id ? GOLD : fg(0.5),
               borderBottom: tab === id ? `2px solid ${GOLD}` : "2px solid transparent",
               marginBottom: -1,
-            }}>{label}</button>
+            }}>{label}{id === "reviews" && pendingReviews > 0 && <span style={{ background: GOLD, color: "#111", borderRadius: 999, padding: "1px 7px", fontSize: 10, marginLeft: 6, letterSpacing: 0 }}>{pendingReviews}</span>}</button>
           ))}
         </div>
 
@@ -2157,6 +2327,7 @@ function Dashboard({ onLogout }) {
         {tab === "orders"    && <OrdersTab />}
         {tab === "customers" && <CustomersTab />}
         {tab === "analytics" && <AnalyticsTab />}
+        {tab === "reviews" && <ReviewsTab onChange={loadPendingReviews} />}
       </div>
     </div>
   );
@@ -2255,6 +2426,106 @@ function OrdersTab() {
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+// ── REVIEWS TAB (moderation queue) ──────────────────────────────────
+// Pending reviews are private: only an admin session ever sees them here.
+// Approve shows the review on the homepage, Deny hides it, Delete removes
+// it and its photo for good.
+function ReviewsTab({ onChange }) {
+  const [reviews, setReviews] = useState([]);
+  const [filter, setFilter] = useState("pending");
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
+
+  async function load() {
+    setLoading(true);
+    setErr("");
+    const { data, error } = await supabase.from("reviews").select("*").order("created_at", { ascending: false });
+    if (error) setErr("Could not load reviews: " + error.message);
+    else setReviews(data || []);
+    setLoading(false);
+  }
+
+  useEffect(() => { load(); }, []);
+
+  async function setStatus(id, status) {
+    const { error } = await supabase.from("reviews").update({ status }).eq("id", id);
+    if (error) { alert("Update failed: " + error.message); return; }
+    setReviews((prev) => prev.map((r) => (r.id === id ? { ...r, status } : r)));
+    if (onChange) onChange();
+  }
+
+  async function remove(id, photoUrl) {
+    if (!window.confirm("Delete this review for good? Its photo goes with it.")) return;
+    // Remove the photo too (best effort) so a deleted review leaves nothing behind.
+    if (photoUrl) {
+      const marker = "/review-photos/";
+      const idx = String(photoUrl).indexOf(marker);
+      if (idx >= 0) {
+        await supabase.storage.from("review-photos").remove([String(photoUrl).slice(idx + marker.length)]).catch(() => {});
+      }
+    }
+    const { error } = await supabase.from("reviews").delete().eq("id", id);
+    if (error) { alert("Delete failed: " + error.message); return; }
+    setReviews((prev) => prev.filter((r) => r.id !== id));
+    if (onChange) onChange();
+  }
+
+  const shown = reviews.filter((r) => filter === "all" || r.status === filter);
+  const counts = {
+    all: reviews.length,
+    pending: reviews.filter((r) => r.status === "pending").length,
+    approved: reviews.filter((r) => r.status === "approved").length,
+    denied: reviews.filter((r) => r.status === "denied").length,
+  };
+  const filterBtn = (active) => ({
+    padding: "7px 14px", borderRadius: 999, cursor: "pointer", fontWeight: 600, textTransform: "capitalize",
+    border: `1px solid ${ADMIN_BORDER}`,
+    background: active ? GOLD : "transparent", color: active ? "#111" : fg(0.7),
+  });
+
+  if (loading) return <Centered>Loading reviews…</Centered>;
+  if (err) return <div style={{ color: "#e5484d", fontSize: 13, fontFamily: SANS }}>{err}</div>;
+
+  return (
+    <div>
+      <p style={{ color: fg(0.55), fontSize: 13, fontFamily: SANS, marginBottom: 16 }}>
+        Nothing shows on the site until you approve it. Pending reviews are private — only you see them here.
+      </p>
+      <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
+        {["pending", "approved", "denied", "all"].map((f) => (
+          <button key={f} type="button" onClick={() => setFilter(f)} style={filterBtn(filter === f)}>
+            {f} ({counts[f]})
+          </button>
+        ))}
+        <button type="button" onClick={load} style={filterBtn(false)}>Refresh</button>
+      </div>
+      {shown.length === 0 ? (
+        <div style={{ color: fg(0.55), fontSize: 13, fontFamily: SANS }}>
+          {filter === "pending" ? "No reviews waiting. New ones will land here first." : `No ${filter} reviews.`}
+        </div>
+      ) : (
+        <div style={{ display: "grid", gap: 16 }}>
+          {shown.map((r) => (
+            <article key={r.id} style={{ border: `1px solid ${ADMIN_BORDER}`, borderRadius: 4, padding: 20 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 8, flexWrap: "wrap", fontFamily: SANS }}>
+                <strong>{r.name} · {"★".repeat(r.rating)}{"☆".repeat(5 - r.rating)}</strong>
+                <span style={{ color: fg(0.55), fontSize: 13 }}>{new Date(r.created_at).toLocaleString()} · {r.status}</span>
+              </div>
+              <p style={{ lineHeight: 1.7, marginBottom: r.photo_url ? 12 : 8, whiteSpace: "pre-wrap", fontFamily: SANS, fontSize: 14 }}>{r.body}</p>
+              {r.photo_url && <img src={r.photo_url} alt="" loading="lazy" style={{ maxWidth: 240, borderRadius: 4, display: "block", marginBottom: 12 }} />}
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {r.status !== "approved" && <button type="button" style={ghostButton} onClick={() => setStatus(r.id, "approved")}>Approve</button>}
+                {r.status !== "denied" && <button type="button" style={ghostButton} onClick={() => setStatus(r.id, "denied")}>Deny</button>}
+                <button type="button" style={ghostButton} onClick={() => remove(r.id, r.photo_url)}>Delete</button>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
