@@ -783,7 +783,7 @@ function Nav({ count, onCart, bumpKey }) {
             <User size={16} strokeWidth={1.6} />
             {session && <span aria-label={t("nav.loggedIn")} style={{ position: "absolute", bottom: -1, right: -1, width: 10, height: 10, borderRadius: "50%", background: OK, border: `2px solid var(--bg)` }} />}
           </button>
-          <button type="button" className="icon-btn" onClick={onCart} aria-label={`${t("nav.cart")}${count ? ` (${count})` : ""}`}>
+          <button type="button" className="icon-btn" data-tour="cart" onClick={onCart} aria-label={`${t("nav.cart")}${count ? ` (${count})` : ""}`}>
             <ShoppingBag size={16} strokeWidth={1.6} />
             {count > 0 && (
               <span key={bumpKey} className="bump" style={{ position: "absolute", top: -4, right: -4, background: `linear-gradient(135deg,var(--gold-fill),var(--gold-fill2))`, color: INK, fontSize: 9, fontWeight: 700, borderRadius: 999, minWidth: 17, height: 17, padding: "0 4px", display: "flex", alignItems: "center", justifyContent: "center" }}>{count}</span>
@@ -964,7 +964,7 @@ function HomePage({ onAdd }) {
   ];
   return (
     <>
-      <section style={{ position: "relative", overflow: "hidden", padding: "150px 24px 96px", textAlign: "center" }}>
+      <section data-tour="hero" style={{ position: "relative", overflow: "hidden", padding: "150px 24px 96px", textAlign: "center" }}>
         <div aria-hidden="true" style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse at 50% 38%, var(--hero-glow) 0%, transparent 64%)", animation: "heroBreathe 7s ease-in-out infinite", pointerEvents: "none" }} />
         <img aria-hidden="true" alt="" src={LOGO2} style={{ position: "absolute", top: "50%", left: "50%", width: "min(620px,92vw)", transform: "translate(-50%,-52%)", opacity: 0.07, pointerEvents: "none", filter: "saturate(.8)" }} />
         <div style={{ position: "relative", zIndex: 1 }}>
@@ -978,6 +978,7 @@ function HomePage({ onAdd }) {
           <div style={{ display: "flex", gap: 14, justifyContent: "center", flexWrap: "wrap", animation: "fadeUp .8s .28s ease both" }}>
             <Btn onClick={() => go("products")}>{t("home.ctaShop")}<ArrowRight size={14} /></Btn>
             <Btn outline onClick={() => go("stacks")}>{t("home.ctaStacks")}</Btn>
+            <Btn outline onClick={() => window.dispatchEvent(new CustomEvent("tp:start-tour"))}>{t("tour.start")}</Btn>
           </div>
         </div>
       </section>
@@ -1083,7 +1084,7 @@ function ReviewsSection() {
   };
 
   return (
-    <section style={{ padding: "76px 24px 84px", background: "var(--bg2)", borderTop: `1px solid ${BORDER}`, borderBottom: `1px solid ${BORDER}` }}>
+    <section data-tour="reviews" style={{ padding: "76px 24px 84px", background: "var(--bg2)", borderTop: `1px solid ${BORDER}`, borderBottom: `1px solid ${BORDER}` }}>
       <div className="wrap">
         <SectionHead eyebrow={t("home.testimonialsEyebrow")} title={t("home.testimonialsTitle")} />
         {loaded && reviews.length === 0 ? (
@@ -1110,7 +1111,7 @@ function ReviewsSection() {
             <p style={{ fontSize: 13.5, color: DIM, lineHeight: 1.9, margin: 0 }}>{t("home.reviewThanks")}</p>
           ) : (
             <form onSubmit={submit} style={{ display: "grid", gap: 13 }}>
-              <input value={name} onChange={(e) => setName(e.target.value)} placeholder={t("home.reviewName")} maxLength={80} style={inputStyle} />
+              <input value={name} onChange={(e) => setName(e.target.value)} placeholder={t("home.reviewName")} aria-label={t("home.reviewName")} maxLength={80} style={inputStyle} />
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <span style={{ fontSize: 12, color: DIM2, marginRight: 4 }}>{t("home.reviewRating")}</span>
                 {[1, 2, 3, 4, 5].map((n) => (
@@ -1118,10 +1119,10 @@ function ReviewsSection() {
                     style={{ background: "none", border: "none", cursor: "pointer", fontSize: 21, padding: 2, color: n <= rating ? GOLD : fg(0.3) }}>★</button>
                 ))}
               </div>
-              <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder={t("home.reviewText")} maxLength={2000} rows={4} style={{ ...inputStyle, resize: "vertical" }} />
+              <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder={t("home.reviewText")} aria-label={t("home.reviewText")} maxLength={2000} rows={4} style={{ ...inputStyle, resize: "vertical" }} />
               <label style={{ fontSize: 12.5, color: DIM, display: "grid", gap: 7 }}>
                 {t("home.reviewPhoto")}
-                <input type="file" accept="image/*" onChange={(e) => setPhoto(e.target.files && e.target.files[0] ? e.target.files[0] : null)} style={{ fontSize: 12.5, color: DIM }} />
+                <input type="file" accept="image/*" aria-label={t("home.reviewPhoto")} onChange={(e) => setPhoto(e.target.files && e.target.files[0] ? e.target.files[0] : null)} style={{ fontSize: 12.5, color: DIM }} />
               </label>
               {error && <div style={{ fontSize: 12.5, color: "#e07856", lineHeight: 1.7 }}>{error}</div>}
               <div>
@@ -1155,7 +1156,7 @@ function ProductCard({ product, onAdd }) {
     timer.current = setTimeout(() => setAdded(false), 1800);
   };
   return (
-    <article className="card card-hover" style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}>
+    <article data-tour="product" className="card card-hover" style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}>
       <button type="button" onClick={open} aria-label={`${t("common.viewDetails")}: ${name}`} style={{ display: "block", padding: 14, paddingBottom: 0, textAlign: "left" }}>
         <ProductMedia product={product} />
       </button>
@@ -1655,7 +1656,7 @@ function HowToPage() {
           <div className="eyebrow" style={{ marginBottom: 10, textAlign: "center" }}>{t("howto.videosEyebrow")}</div>
           <h2 className="display" style={{ fontSize: 30, textAlign: "center", marginBottom: 12 }}>{t("howto.videosTitle")}</h2>
           <p style={{ fontSize: 12.5, color: DIM, lineHeight: 1.85, maxWidth: 620, margin: "0 auto 30px", textAlign: "center" }}>{t("howto.videosText")}</p>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))", gap: 22 }}>
+          <div data-tour="howto" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))", gap: 22 }}>
             {VIDEOS.map((v) => <VideoCard key={v.id} video={v} />)}
           </div>
         </div>
@@ -3450,6 +3451,156 @@ function EmailPopup({ onClose }) {
 }
 
 // ── CHAT WIDGET ─────────────────────────────────────────────────
+// ── GUIDED TOUR ─────────────────────────────────────────────────
+// First-visit invite + a "Take a tour" button in the hero start a short
+// guided walk: home → picking a product → how-to videos → reviews →
+// cart/checkout → chat. Keyboard friendly (Esc closes, focus lands on the
+// card) and announced politely for screen readers.
+function SiteTour() {
+  const { t } = useI18n();
+  const { route, go, entered } = useRouter();
+  const [invite, setInvite] = useState(false);
+  const [step, setStep] = useState(-1); // -1 = not running
+  const [rect, setRect] = useState(null);
+  const cardRef = useRef(null);
+  const lastStepRef = useRef(-1);
+
+  const STEPS = [
+    { page: "home", target: "hero" },
+    { page: "home", target: "product" },
+    { page: "howto", target: "howto" },
+    { page: "home", target: "reviews" },
+    { page: null, target: "cart" },
+    { page: null, target: "chat" },
+  ];
+  const running = step >= 0;
+  const isAdmin = route.page === "admin";
+
+  // Offer the tour once, on the home page, after the intro.
+  useEffect(() => {
+    if (!entered || isAdmin || route.page !== "home") return;
+    if (store.get("tp_tour_seen")) return;
+    const id = setTimeout(() => setInvite(true), 1400);
+    return () => clearTimeout(id);
+  }, [entered, isAdmin, route.page]);
+
+  // The hero button (or anything else) can start the tour via this event.
+  useEffect(() => {
+    const fn = () => { setInvite(false); setStep(0); };
+    window.addEventListener("tp:start-tour", fn);
+    return () => window.removeEventListener("tp:start-tour", fn);
+  }, []);
+
+  const close = useCallback(() => {
+    setStep(-1); setInvite(false); setRect(null);
+    store.set("tp_tour_seen", "1");
+  }, []);
+
+  // When the step changes, hop to its page if needed, then highlight.
+  useEffect(() => {
+    if (!running) return;
+    const s = STEPS[step];
+    if (s.page && route.page !== s.page && lastStepRef.current !== step) {
+      lastStepRef.current = step;
+      go(s.page);
+      return;
+    }
+    lastStepRef.current = step;
+    let tries = 0; let timer;
+    const find = () => {
+      const el = document.querySelector(`[data-tour="${s.target}"]`);
+      if (el) {
+        el.scrollIntoView({ block: "center", behavior: "smooth" });
+        setTimeout(() => setRect(el.getBoundingClientRect()), 400);
+        setTimeout(() => setRect(el.getBoundingClientRect()), 800);
+      } else if (tries++ < 12) { timer = setTimeout(find, 150); }
+      else setRect(null);
+    };
+    find();
+    const onResize = () => {
+      const el = document.querySelector(`[data-tour="${s.target}"]`);
+      if (el) setRect(el.getBoundingClientRect());
+    };
+    window.addEventListener("resize", onResize);
+    return () => { clearTimeout(timer); window.removeEventListener("resize", onResize); };
+  }, [step, route.page]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Focus the card when it appears or the step changes; Esc closes.
+  useEffect(() => {
+    if ((running || invite) && cardRef.current) cardRef.current.focus();
+  }, [step, running, invite]);
+  useEffect(() => {
+    if (!running && !invite) return;
+    const fn = (e) => { if (e.key === "Escape") close(); };
+    document.addEventListener("keydown", fn);
+    return () => document.removeEventListener("keydown", fn);
+  }, [running, invite, close]);
+
+  if (isAdmin || !entered) return null;
+
+  const cardStyle = {
+    position: "fixed", zIndex: 10001, background: "var(--bg2)", color: fg(0.92),
+    border: `1px solid ${GOLD}`, borderRadius: 12, padding: "20px 22px",
+    width: 340, maxWidth: "calc(100vw - 32px)", boxShadow: "0 18px 60px rgba(0,0,0,.5)",
+    fontFamily: SANS, outline: "none",
+  };
+
+  if (invite && !running) {
+    return (
+      <div ref={cardRef} tabIndex={-1} role="dialog" aria-label={t("tour.inviteTitle")} style={{ ...cardStyle, left: 16, bottom: 16 }}>
+        <div style={{ fontFamily: SERIF, fontSize: 20, color: GOLD, marginBottom: 8 }}>{t("tour.inviteTitle")}</div>
+        <p style={{ fontSize: 13, lineHeight: 1.8, color: DIM, margin: "0 0 16px" }}>{t("tour.inviteText")}</p>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <Btn small onClick={() => { setInvite(false); setStep(0); }}>{t("tour.inviteStart")}</Btn>
+          <Btn small outline onClick={close}>{t("tour.inviteSkip")}</Btn>
+        </div>
+      </div>
+    );
+  }
+
+  if (!running) return null;
+
+  const total = STEPS.length;
+  const title = t(`tour.s${step + 1}Title`);
+  const text = t(`tour.s${step + 1}Text`);
+  let pos = { left: 16, bottom: 16 };
+  if (rect) {
+    const left = Math.max(16, Math.min(rect.left, window.innerWidth - 356));
+    if (rect.bottom + 300 < window.innerHeight) pos = { left, top: rect.bottom + 14 };
+    else if (rect.top - 300 > 0) pos = { left, top: Math.max(12, rect.top - 290) };
+    else pos = { left, bottom: 16 };
+  }
+
+  return (
+    <>
+      <div aria-hidden="true" style={{ position: "fixed", inset: 0, zIndex: 10000, background: "rgba(0,0,0,.45)", pointerEvents: "none" }} />
+      {rect && (
+        <div aria-hidden="true" style={{
+          position: "fixed", zIndex: 10000, pointerEvents: "none", borderRadius: 10,
+          left: rect.left - 6, top: rect.top - 6, width: rect.width + 12, height: rect.height + 12,
+          border: `2px solid ${GOLD}`, boxShadow: "0 0 0 4px rgba(var(--gold-rgb),.25)",
+        }} />
+      )}
+      <div ref={cardRef} tabIndex={-1} role="dialog" aria-label={title} style={{ ...cardStyle, ...pos }}>
+        <div aria-live="polite">
+          <div style={{ fontSize: 10.5, letterSpacing: "0.18em", color: DIM2, textTransform: "uppercase", marginBottom: 6 }}>
+            {t("tour.stepOf", { a: step + 1, b: total })}
+          </div>
+          <div style={{ fontFamily: SERIF, fontSize: 20, color: GOLD, marginBottom: 8 }}>{title}</div>
+          <p style={{ fontSize: 13, lineHeight: 1.8, color: DIM, margin: "0 0 16px" }}>{text}</p>
+        </div>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+          {step > 0 && <Btn small outline onClick={() => setStep(step - 1)}>{t("tour.back")}</Btn>}
+          {step < total - 1
+            ? <Btn small onClick={() => setStep(step + 1)}>{t("tour.next")}</Btn>
+            : <Btn small onClick={close}>{t("tour.done")}</Btn>}
+          <button type="button" onClick={close} style={{ background: "none", border: "none", cursor: "pointer", color: DIM2, fontSize: 12, textDecoration: "underline", padding: 4 }}>{t("tour.skip")}</button>
+        </div>
+      </div>
+    </>
+  );
+}
+
 function ChatWidget({ hidden }) {
   const { t, lang } = useI18n();
   const [open, setOpen] = useState(false);
@@ -3518,7 +3669,7 @@ function ChatWidget({ hidden }) {
           <button type="button" onClick={() => { track("chat_open"); setOpen(true); setNudge(false); }} className="hide-mobile"
             style={{ background: "var(--bg2)", border: `1px solid ${BORDER}`, color: FG, fontSize: 13, padding: "10px 16px", borderRadius: 12, whiteSpace: "nowrap", boxShadow: "0 6px 24px rgba(0,0,0,.25)", animation: "fadeUp .4s ease" }}>{t("chat.nudge")}</button>
         )}
-        <button type="button" onClick={() => { if (!open) track("chat_open"); setOpen((o) => !o); setNudge(false); }} aria-label={open ? t("chat.close") : t("chat.open")} aria-expanded={open}
+        <button type="button" data-tour="chat" onClick={() => { if (!open) track("chat_open"); setOpen((o) => !o); setNudge(false); }} aria-label={open ? t("chat.close") : t("chat.open")} aria-expanded={open}
           style={{ width: 56, height: 56, borderRadius: "50%", background: "var(--gold-fill)", color: "var(--ink)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 6px 24px rgba(var(--gold-rgb),.4)", transition: "transform .2s ease" }}
           onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.07)")} onMouseLeave={(e) => (e.currentTarget.style.transform = "none")}>
           {open ? <X size={22} /> : <MessageCircle size={23} />}
@@ -3560,6 +3711,7 @@ function Shell() {
   const { cart, add, addMany, remove, setQty, clear, total, count } = useCart(products);
   const [cartOpen, setCartOpen] = useState(false);
   const [bumpKey, setBumpKey] = useState(0);
+  const [liveMsg, setLiveMsg] = useState("");
   const [popup, setPopup] = useState(false);
   const isAdmin = route.page === "admin";
   const showIntro = !entered && !isAdmin && !recovery;
@@ -3569,7 +3721,7 @@ function Shell() {
   useEffect(() => { window.scrollTo(0, 0); }, [route.page, route.param]);
   useEffect(() => { if (!showIntro && route.page !== "admin") track("page_view", route.page); }, [route.page, showIntro]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const onAdd = useCallback((p, v) => { add(p, v); track("add_to_cart", p.id); setBumpKey((k) => k + 1); }, [add]);
+  const onAdd = useCallback((p, v) => { add(p, v); track("add_to_cart", p.id); setBumpKey((k) => k + 1); setLiveMsg(""); setTimeout(() => setLiveMsg(t("common.addedToCart")), 60); }, [add, t]);
   const onAddMany = useCallback((e) => { addMany(e); e.forEach((x) => track("add_to_cart", x.product.id)); setBumpKey((k) => k + 1); }, [addMany]);
 
   // Offer popup: after 30s on the site, or when the cursor leaves the window
@@ -3608,11 +3760,13 @@ function Shell() {
   return (
     <>
       <a href="#main" className="skip" onClick={(e) => { e.preventDefault(); const m = document.getElementById("main"); m && m.focus(); }}>{t("common.skip")}</a>
+      <div aria-live="polite" role="status" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)", whiteSpace: "nowrap" }}>{liveMsg}</div>
       <Nav count={count} onCart={() => setCartOpen(true)} bumpKey={bumpKey} />
       <main id="main" tabIndex={-1} style={{ outline: "none" }}>
         <div key={`${p}:${route.param || ""}`} className="page-enter">{page}</div>
       </main>
       <Footer />
+      <SiteTour />
       <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} cart={cart} total={total} onRemove={remove} onQty={setQty} onAdd={onAdd} onClear={clear} />
       {popup && !cartOpen && !isAdmin && <EmailPopup onClose={() => setPopup(false)} />}
       <ChatWidget hidden={isAdmin || cartOpen} />
