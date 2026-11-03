@@ -317,6 +317,12 @@ const G = `
 
   /* accordion */
   .acc{display:grid;grid-template-rows:0fr;transition:grid-template-rows .45s cubic-bezier(.2,.7,.2,1)}
+  /* homepage stats strip — fixed 4-across / 2-across columns so dividers
+     only ever sit BETWEEN cells (no stray bar at a row start) */
+  .stats-grid{display:grid;grid-template-columns:repeat(4,1fr)}
+  .stat-cell{border-left:1px solid var(--border)}
+  .stat-cell:first-child{border-left:none}
+  @media(max-width:640px){.stats-grid{grid-template-columns:repeat(2,1fr)}.stat-cell:nth-child(3){border-left:none}.stat-cell:nth-child(n+3){border-top:1px solid var(--border)}}
   .acc.open{grid-template-rows:1fr}
   .acc>div{overflow:hidden;min-height:0}
 
@@ -992,9 +998,9 @@ function HomePage({ onAdd }) {
       <TrustBar />
 
       <section className="reveal" style={{ padding: "56px 24px 8px" }}>
-        <div className="wrap" style={{ maxWidth: 940, display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", textAlign: "center" }}>
+        <div className="wrap stats-grid" style={{ maxWidth: 940, textAlign: "center" }}>
           {stats.map(([num, label], i) => (
-            <div key={label} style={{ padding: "18px 12px", borderLeft: i ? `1px solid ${BORDER}` : "none" }}>
+            <div key={label} className="stat-cell" style={{ padding: "18px 12px" }}>
               <div className="display" style={{ fontSize: 40, color: GOLD, marginBottom: 6 }}>{num}</div>
               <div style={{ fontSize: 10.5, letterSpacing: "0.2em", color: DIM2, textTransform: "uppercase" }}>{label}</div>
             </div>
