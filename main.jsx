@@ -477,7 +477,7 @@ function ProductsProvider({ children }) {
         desc: p.description,
         desc_es: p.description_es || null,
         variants: (Array.isArray(p.variants) ? p.variants : [])
-          .map((v) => ({ label: String(v.label), price: Number(v.price) }))
+          .map((v) => ({ label: String(v.label), price: Number(v.price), ...(v.image ? { image: String(v.image) } : {}) }))
           .filter((v) => v.label && Number.isFinite(v.price)),
         image_url: p.image_url,
         stock_quantity: p.stock_quantity,
@@ -623,14 +623,15 @@ function GoldRule({ margin = "44px 0" }) {
 
 // Product photo, or a finished-looking placeholder tile when no photo is set
 // (or if the photo URL fails to load) — never a broken-image icon.
-function ProductMedia({ product, ratio = "4 / 3", eager = false }) {
+function ProductMedia({ product, variant = null, ratio = "4 / 3", eager = false }) {
   const [bad, setBad] = useState(false);
-  useEffect(() => { setBad(false); }, [product.image_url]);
+  const src = (variant && variant.image) || product.image_url;
+  useEffect(() => { setBad(false); }, [src]);
   const initial = (product.name || "T").trim().charAt(0).toUpperCase();
   return (
     <div className="media" style={{ aspectRatio: ratio }}>
-      {product.image_url && !bad ? (
-        <img src={product.image_url} alt={product.name} loading={eager ? "eager" : "lazy"} onError={() => setBad(true)} />
+      {src && !bad ? (
+        <img src={src} alt={product.name} loading={eager ? "eager" : "lazy"} onError={() => setBad(true)} />
       ) : (
         <div className="ph" aria-hidden="true">
           <div className="ph-ring"><div className="ph-mono">{initial}</div></div>
@@ -1053,6 +1054,11 @@ function ReviewsSection() {
     return () => { live = false; };
   }, []);
 
+  // Review cards render only after the fetch lands, which can be after the
+  // page's reveal sweep already ran — re-run the sweep when reviews arrive
+  // or the cards stay invisible (opacity 0).
+  useReveal(reviews.length);
+
   async function submit(e) {
     e.preventDefault();
     setError("");
@@ -1161,7 +1167,7 @@ function ProductCard({ product, onAdd }) {
   return (
     <article data-tour="product" className="card card-hover" style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}>
       <button type="button" onClick={open} aria-label={`${t("common.viewDetails")}: ${name}`} style={{ display: "block", padding: 14, paddingBottom: 0, textAlign: "left" }}>
-        <ProductMedia product={product} />
+        <ProductMedia product={product} variant={v} />
       </button>
       <div style={{ padding: "18px 22px 20px", display: "flex", flexDirection: "column", flex: 1 }}>
         <div className="eyebrow" style={{ fontSize: 9.5, marginBottom: 8, display: "flex", justifyContent: "space-between", gap: 8 }}>
@@ -1324,7 +1330,7 @@ function ProductDetailPage({ onAdd }) {
         <button type="button" onClick={() => go("products")} className="link" style={{ fontSize: 12, textDecoration: "none", marginBottom: 28, display: "inline-flex", alignItems: "center", gap: 6 }}>{t("detail.back")}</button>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))", gap: "clamp(28px,5vw,64px)", alignItems: "start" }}>
           <div style={{ position: "sticky", top: 96 }}>
-            <div className="card" style={{ padding: 14 }}><ProductMedia product={product} ratio="1 / 1" eager /></div>
+            <div className="card" style={{ padding: 14 }}><ProductMedia product={product} variant={v} ratio="1 / 1" eager /></div>
           </div>
           <div>
             <div className="eyebrow" style={{ marginBottom: 12 }}>{catLabel(t, product.cat)}</div>
@@ -2584,7 +2590,7 @@ function ProductsTab() {
     const id = editing === "new" ? (form.id.trim() ? slugify(form.id) : slugify(form.name)) : editing;
     const cleanVariants = form.variants
       .filter((v) => v.label.trim() && v.price !== "")
-      .map((v) => ({ label: v.label.trim(), price: Number(v.price) }));
+      .map((v) => ({ label: v.label.trim(), price: Number(v.price), ...(v.image ? { image: v.image } : {}) }));
     if (cleanVariants.length === 0) { alert("Add at least one price/variant."); return; }
 
     setSaving(true);
