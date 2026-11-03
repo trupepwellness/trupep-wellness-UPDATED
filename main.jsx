@@ -3036,6 +3036,8 @@ function CartDrawer({ open, onClose, cart, total, onRemove, onQty, onAdd, onClea
   const [step, setStep] = useState("cart"); // cart | checkout | confirmed
   const [promo, setPromo] = useState("");
   const [discount, setDiscount] = useState(0);
+  const [flatOff, setFlatOff] = useState(0);
+  const [dbCode, setDbCode] = useState(null);
   const [promoMsg, setPromoMsg] = useState(null);
   const [shipping, setShipping] = useState("standard");
   const [form, setForm] = useState({ name: "", email: "", phone: "", street: "", city: "", state: "", zip: "", notes: "", contact_pref: "" });
@@ -3064,7 +3066,7 @@ function CartDrawer({ open, onClose, cart, total, onRemove, onQty, onAdd, onClea
 
   // A finished order shouldn't reopen on the next visit: reset when the drawer closes.
   const close = () => {
-    if (step === "confirmed") { setStep("cart"); setDone(null); setPromo(""); setDiscount(0); setPromoMsg(null); }
+    if (step === "confirmed") { setStep("cart"); setDone(null); setPromo(""); setDiscount(0); setFlatOff(0); setDbCode(null); setPromoMsg(null); }
     onClose();
   };
 
@@ -3074,13 +3076,27 @@ function CartDrawer({ open, onClose, cart, total, onRemove, onQty, onAdd, onClea
   const bacVariant = bac && bac.variants[0];
   const hasBac = cart.some((i) => i.id === "bacwater");
 
-  const applyPromo = () => {
+  const applyPromo = async () => {
     const code = promo.trim().toUpperCase();
-    if (PROMO_CODES[code]) { setDiscount(PROMO_CODES[code]); setPromoMsg({ ok: true, text: t("cart.promoOk", { pct: PROMO_CODES[code] }) }); }
-    else { setDiscount(0); setPromoMsg({ ok: false, text: t("cart.promoBad") }); }
+    if (!code) return;
+    if (PROMO_CODES[code]) { setDiscount(PROMO_CODES[code]); setFlatOff(0); setDbCode(null); setPromoMsg({ ok: true, text: t("cart.promoOk", { pct: PROMO_CODES[code] }) }); return; }
+    // Database codes (e.g. one-time named rewards) live in `discount_codes`
+    // and are checked through get_promo — the table itself is not readable.
+    try {
+      const { data, error } = await supabase.rpc("get_promo", { p_code: code });
+      const row = Array.isArray(data) ? data[0] : data;
+      if (!error && row && row.valid) {
+        if (row.kind === "flat") { setFlatOff(Number(row.amount) || 0); setDiscount(0); }
+        else { setDiscount(Number(row.amount) || 0); setFlatOff(0); }
+        setDbCode(code);
+        setPromoMsg({ ok: true, text: row.kind === "flat" ? t("cart.promoOkFlat", { amount: fmt(Number(row.amount) || 0) }) : t("cart.promoOk", { pct: row.amount }) });
+        return;
+      }
+    } catch (_) {}
+    setDiscount(0); setFlatOff(0); setDbCode(null); setPromoMsg({ ok: false, text: t("cart.promoBad") });
   };
 
-  const discounted = total * (1 - discount / 100);
+  const discounted = Math.max(0, total * (1 - discount / 100) - flatOff);
   const shippingFee = shipping === "overnight" ? 0 : SHIPPING_STANDARD;
   const grandTotal = discounted + shippingFee;
   const overnight = shipping === "overnight";
@@ -3093,7 +3109,16 @@ function CartDrawer({ open, onClose, cart, total, onRemove, onQty, onAdd, onClea
     setSending(true);
     setError("");
 
-    if (discount > 0) {
+    if (dbCode) {
+      // One-time database code: re-check it is still live before placing the order.
+      let stillValid = false;
+      try {
+        const { data } = await supabase.rpc("get_promo", { p_code: dbCode });
+        const row = Array.isArray(data) ? data[0] : data;
+        stillValid = !!(row && row.valid);
+      } catch (_) {}
+      if (!stillValid) { setError(t("cart.promoUsedCode")); setSending(false); return; }
+    } else if (discount > 0) {
       const code = promo.trim().toUpperCase();
       const { data: alreadyUsed, error: checkErr } = await supabase.rpc("check_promo_used", { p_email: form.email.trim(), p_code: code });
       if (!checkErr && alreadyUsed) { setError(t("cart.promoUsed", { code })); setSending(false); return; }
@@ -3113,8 +3138,8 @@ function CartDrawer({ open, onClose, cart, total, onRemove, onQty, onAdd, onClea
         street: form.street, city: form.city, state: form.state, zip: form.zip,
         contact_pref: form.contact_pref || null,
         items: cart.map((i) => ({ product_id: i.id, name: i.name, variant_label: i.variant.label, price: i.variant.price, qty: i.qty })),
-        subtotal: total, discount_pct: discount, shipping_cost: shippingFee, total: grandTotal,
-        promo_code: discount ? promo.trim().toUpperCase() : null,
+        subtotal: total, discount_pct: total > 0 ? Math.round(((total - discounted) / total) * 10000) / 100 : 0, discount_amount: (discount > 0 || flatOff > 0) ? (total - discounted) : null, shipping_cost: shippingFee, total: grandTotal,
+        promo_code: (discount > 0 || flatOff > 0) ? promo.trim().toUpperCase() : null,
         notes: form.notes || null,
       });
       dbSaved = !dbErr;
@@ -3128,7 +3153,7 @@ function CartDrawer({ open, onClose, cart, total, onRemove, onQty, onAdd, onClea
       order: orderLines,
       order_total: fmt(grandTotal),
       shipping_method: overnight ? "Overnight / Next Day (carrier quote will be provided)" : "Standard — $15.00",
-      ...(discount ? { promo_discount: `${discount}%` } : {}),
+      ...((discount > 0 || flatOff > 0) ? { promo_discount: flatOff > 0 ? `${fmt(flatOff)} off (${promo.trim().toUpperCase()})` : `${discount}%` } : {}),
       ...(dbSaved ? {} : { saved_to_database: "no — check Supabase" }),
     };
 
@@ -3144,9 +3169,12 @@ function CartDrawer({ open, onClose, cart, total, onRemove, onQty, onAdd, onClea
       const body = encodeURIComponent(
         `NEW ORDER ${orderNumber}\n\nName: ${form.name}\nEmail: ${form.email}\nPhone: ${form.phone}\n` +
         `Address: ${form.street}, ${form.city}, ${form.state} ${form.zip}\n\nORDER:\n${orderLines}\n\nTotal: ${fmt(discounted)}${overnight ? " + carrier shipping" : ` + ${fmt(SHIPPING_STANDARD)} shipping`}` +
-        (discount ? `\nDiscount: ${discount}%` : "") + (form.contact_pref ? `\nPreferred Contact: ${form.contact_pref}` : "") + (form.notes ? `\nNotes: ${form.notes}` : ""));
+        ((discount > 0 || flatOff > 0) ? `\nDiscount: ${flatOff > 0 ? fmt(flatOff) + " off" : discount + "%"}` : "") + (form.contact_pref ? `\nPreferred Contact: ${form.contact_pref}` : "") + (form.notes ? `\nNotes: ${form.notes}` : ""));
       window.location.href = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(`New TruPep Order ${orderNumber} — ${form.name}`)}&body=${body}`;
     }
+
+    // Burn the one-time database code so it can never be used again.
+    if (dbCode) { try { await supabase.rpc("redeem_promo", { p_code: dbCode, p_order: orderId }); } catch (_) {} }
 
     setDone({ number: orderNumber, amountText, grand: grandTotal, overnight, email: form.email, usedMail });
     track("order_placed", null, { items: cart.reduce((n, i) => n + i.qty, 0), db: dbSaved ? 1 : 0 });
@@ -3238,7 +3266,7 @@ function CartDrawer({ open, onClose, cart, total, onRemove, onQty, onAdd, onClea
               <div style={{ borderTop: `1px solid ${BORDER}`, paddingTop: 16, marginTop: 14 }}>
                 {shippingChooser}
                 {row(t("cart.subtotal"), fmt(total))}
-                {discount > 0 && row(t("cart.discount", { pct: discount }), `−${fmt(total - discounted)}`, OK)}
+                {(discount > 0 || flatOff > 0) && row(flatOff > 0 ? t("cart.discountFlat") : t("cart.discount", { pct: discount }), `−${fmt(total - discounted)}`, OK)}
                 {row(t("cart.shippingLine"), overnight ? t("cart.tbd") : fmt(SHIPPING_STANDARD))}
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", fontSize: 15, fontWeight: 700, marginTop: 10, marginBottom: 6 }}>
                   <span>{t("cart.total")}</span>
@@ -3273,7 +3301,7 @@ function CartDrawer({ open, onClose, cart, total, onRemove, onQty, onAdd, onClea
                 ))}
                 <div style={{ borderTop: `1px solid ${BORDER}`, marginTop: 10, paddingTop: 10 }}>
                   {row(t("cart.subtotal"), fmt(total))}
-                  {discount > 0 && row(t("cart.discount", { pct: discount }), `−${fmt(total - discounted)}`, OK)}
+                  {(discount > 0 || flatOff > 0) && row(flatOff > 0 ? t("cart.discountFlat") : t("cart.discount", { pct: discount }), `−${fmt(total - discounted)}`, OK)}
                   {row(t("cart.shipMethodLabel"), <>{overnight ? t("cart.onTitle") : t("cart.stdTitle")} <button type="button" className="link" style={{ fontSize: 11 }} onClick={() => setStep("cart")}>{t("cart.change")}</button></>)}
                   {row(t("cart.shippingLine"), overnight ? t("cart.tbd") : fmt(SHIPPING_STANDARD))}
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", fontWeight: 700, marginTop: 6 }}>
