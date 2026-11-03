@@ -480,6 +480,7 @@ function ProductsProvider({ children }) {
           .map((v) => ({ label: String(v.label), price: Number(v.price), ...(v.image ? { image: String(v.image) } : {}) }))
           .filter((v) => v.label && Number.isFinite(v.price)),
         image_url: p.image_url,
+        showcase: !!p.showcase,
         stock_quantity: p.stock_quantity,
         low_stock_threshold: p.low_stock_threshold,
         batch_number: p.batch_number,
@@ -957,7 +958,8 @@ function HomePage({ onAdd }) {
   const { products } = useProducts();
   useReveal(products.length);
   const featuredIds = ["retatrutide", "bpc157", "nad", "tb500"];
-  let featured = products.filter((p) => featuredIds.includes(p.id));
+  let featured = products.filter((p) => p.showcase);
+  if (!featured.length) featured = products.filter((p) => featuredIds.includes(p.id));
   if (!featured.length) featured = products.slice(0, 4);
   const n = products.length;
   const stats = [
@@ -2617,11 +2619,23 @@ function ProductsTab() {
     load();
   }
 
+  // One tap: feature (or un-feature) a peptide on the homepage.
+  async function toggleShowcase(p) {
+    const next = !p.showcase;
+    setProducts((list) => list.map((x) => (x.id === p.id ? { ...x, showcase: next } : x)));
+    const { error } = await supabase.from("products").update({ showcase: next }).eq("id", p.id);
+    if (error) {
+      alert("Could not update the showcase: " + error.message);
+      setProducts((list) => list.map((x) => (x.id === p.id ? { ...x, showcase: !next } : x)));
+    }
+  }
+
   if (loading) return <Centered>Loading products…</Centered>;
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap", marginBottom: 20 }}>
+        <div style={{ fontSize: 12.5, color: fg(0.6), maxWidth: 430, lineHeight: 1.6 }}>★ Want a peptide on the homepage? Tap <strong style={{ color: GOLD }}>“Showcase this peptide”</strong> next to it below.</div>
         <button onClick={startNew} style={buttonStyle}>+ Add Product</button>
       </div>
 
@@ -2645,6 +2659,7 @@ function ProductsTab() {
                 <th style={th}>Stock</th>
                 <th style={th}>COA</th>
                 <th style={th}>Status</th>
+                <th style={th}>Showcase</th>
                 <th style={th}></th>
               </tr>
             </thead>
@@ -2669,6 +2684,11 @@ function ProductsTab() {
                     <td style={td}>{p.stock_quantity}</td>
                     <td style={td}>{p.coa_url ? <a href={p.coa_url} target="_blank" rel="noopener noreferrer" style={{ color: GOLD }}>View</a> : <span style={{ color: fg(0.4) }}>None</span>}</td>
                     <td style={td}>{p.active ? <span style={{ color: "#7fd48a" }}>Active</span> : <span style={{ color: fg(0.4) }}>Hidden</span>}</td>
+                    <td style={td}>
+                      {p.showcase
+                        ? <button onClick={() => toggleShowcase(p)} style={{ ...buttonStyle, padding: "8px 14px", fontSize: 10, letterSpacing: 1 }}>★ On homepage</button>
+                        : <button onClick={() => toggleShowcase(p)} style={{ ...ghostButton, padding: "8px 14px", fontSize: 10, letterSpacing: 1 }}>Showcase this peptide</button>}
+                    </td>
                     <td style={td}>
                       <div style={{ display: "flex", gap: 8 }}>
                         <button onClick={() => startEdit(p)} style={{ ...ghostButton, padding: "6px 12px", fontSize: 10 }}>Edit</button>
