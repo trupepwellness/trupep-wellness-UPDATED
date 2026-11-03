@@ -1409,7 +1409,7 @@ function StacksPage({ onAddMany }) {
     <div className="page">
       <div className="wrap" style={{ maxWidth: 1160 }}>
         <SectionHead eyebrow={t("stacks.eyebrow")} title={t("stacks.title")} sub={t("stacks.sub")} />
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(330px,1fr))", gap: 24, marginBottom: 60, alignItems: "start" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(min(330px,100%),1fr))", gap: 24, marginBottom: 60, alignItems: "start" }}>
           {STACKS.map((s) => {
             const isOpen = active === s.id;
             const Icon = STACK_ICONS[s.id] || Layers;
@@ -1417,7 +1417,7 @@ function StacksPage({ onAddMany }) {
             const total = matched.reduce((sum, { p }) => { const v = p && startingVariant(p); return sum + (v ? v.price : 0); }, 0);
             const msg = notice[s.id];
             return (
-              <div key={s.id} className={`card ${isOpen ? "" : "card-hover"}`} style={{ borderColor: isOpen ? "var(--gold)" : undefined, boxShadow: isOpen ? "var(--card-shadow-hover)" : undefined }}>
+              <div key={s.id} className={`card ${isOpen ? "" : "card-hover"}`} style={{ minWidth: 0, borderColor: isOpen ? "var(--gold)" : undefined, boxShadow: isOpen ? "var(--card-shadow-hover)" : undefined }}>
                 <button type="button" onClick={() => setActive(isOpen ? null : s.id)} aria-expanded={isOpen} style={{ display: "block", width: "100%", textAlign: "left", padding: "28px 28px 24px" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
                     <span style={{ width: 50, height: 50, borderRadius: "50%", border: `1px solid ${BORDER}`, display: "flex", alignItems: "center", justifyContent: "center", color: GOLD, background: gl(0.07) }}><Icon size={22} strokeWidth={1.4} /></span>
@@ -1444,8 +1444,8 @@ function StacksPage({ onAddMany }) {
                         ))}
                       </div>
                       <div style={{ display: "grid", gap: 10 }}>
-                        <Btn block onClick={() => buyAll(s)} disabled={!total}>{total ? t("stacks.buyAll", { total: fmt(total) }) : t("common.loading")}</Btn>
-                        <Btn block outline onClick={() => go("products", { query: { stack: s.id } })}>{t("stacks.shopThese")}</Btn>
+                        <Btn block style={{ whiteSpace: "normal", textAlign: "center", lineHeight: 1.45, padding: "14px 20px" }} onClick={() => buyAll(s)} disabled={!total}>{total ? t("stacks.buyAll", { total: fmt(total) }) : t("common.loading")}</Btn>
+                        <Btn block outline style={{ whiteSpace: "normal", textAlign: "center", lineHeight: 1.45, padding: "14px 20px" }} onClick={() => go("products", { query: { stack: s.id } })}>{t("stacks.shopThese")}</Btn>
                       </div>
                       <p style={{ fontSize: 10.5, color: DIM3, lineHeight: 1.7, marginTop: 12 }}>{t("stacks.buyAllNote")}</p>
                       {msg && msg.ok && <p role="status" style={{ fontSize: 12, color: OK, marginTop: 10, display: "flex", alignItems: "center", gap: 6 }}><Check size={14} />{t("stacks.added")}</p>}
@@ -2245,16 +2245,14 @@ function Dashboard({ onLogout }) {
           <button onClick={onLogout} style={ghostButton}>Log Out</button>
         </div>
 
-        <div style={{ display: "flex", gap: 8, marginBottom: 28, borderBottom: `1px solid ${ADMIN_BORDER}` }}>
-          {TABS.map(([id, label]) => (
-            <button key={id} onClick={() => setTab(id)} style={{
-              padding: "10px 18px", fontSize: 11, letterSpacing: 1.5, textTransform: "uppercase",
-              fontWeight: 600, background: "none", border: "none", cursor: "pointer",
-              color: tab === id ? GOLD : fg(0.5),
-              borderBottom: tab === id ? `2px solid ${GOLD}` : "2px solid transparent",
-              marginBottom: -1,
-            }}>{label}</button>
-          ))}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 28, flexWrap: "wrap" }}>
+          <label htmlFor="admin-section" style={{ fontSize: 11, letterSpacing: 1.5, textTransform: "uppercase", fontWeight: 600, color: fg(0.5) }}>Section</label>
+          <select id="admin-section" value={tab} onChange={(e) => setTab(e.target.value)}
+            style={{ ...selectStyle, padding: "10px 14px", fontSize: 13, borderRadius: 6, minWidth: 220, cursor: "pointer" }}>
+            {TABS.map(([id, label]) => (
+              <option key={id} value={id}>{label}</option>
+            ))}
+          </select>
         </div>
 
         {tab === "products"  && <ProductsTab />}
