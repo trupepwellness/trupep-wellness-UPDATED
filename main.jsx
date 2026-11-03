@@ -52,13 +52,8 @@ const PROMO_CODES = {
   ULTRAVIP50:50, DIAMOND55:55,
 };
 
-const TESTIMONIALS = [
-  { name:"Marcus R.",  stars:5, text:"Down 34 lbs in 12 weeks on the weight loss stack. The results speak for themselves." },
-  { name:"Sophia L.",  stars:5, text:"My skin has never looked better. The glow stack completely transformed my complexion." },
-  { name:"James T.",   stars:5, text:"Recovery time cut in half after switching to BPC-157 and TB-500. Total game changer." },
-  { name:"Daniela M.", stars:5, text:"The cognitive stack keeps me sharp during 14-hour trading sessions. Remarkable clarity." },
-  { name:"Rafael C.",  stars:5, text:"TruPep's quality and customer service are unmatched. Loyal customer for life." },
-];
+// Testimonials were removed 2026-11-02: the homepage now shows live,
+// moderated reviews from the Supabase `reviews` table (see ReviewsSection).
 
 const VIDEOS = [
   { id:"n8vk8DfwRHg", title:"How To Properly Reconstitute Peptides" },
@@ -1012,20 +1007,7 @@ function HomePage({ onAdd }) {
         </div>
       </section>
 
-      <section style={{ padding: "76px 24px 84px", background: "var(--bg2)", borderTop: `1px solid ${BORDER}`, borderBottom: `1px solid ${BORDER}` }}>
-        <div className="wrap">
-          <SectionHead eyebrow={t("home.testimonialsEyebrow")} title={t("home.testimonialsTitle")} />
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(270px,1fr))", gap: 22 }}>
-            {TESTIMONIALS.map((q, i) => (
-              <figure key={i} className="card reveal" style={{ padding: 28, margin: 0 }}>
-                <div style={{ color: GOLD, marginBottom: 12, fontSize: 15, letterSpacing: 3 }} aria-label={`${q.stars} / 5`}>{"★".repeat(q.stars)}</div>
-                <blockquote style={{ fontSize: 13.5, color: DIM, lineHeight: 1.9, marginBottom: 16 }}>“{q.text}”</blockquote>
-                <figcaption style={{ fontSize: 11, letterSpacing: "0.18em", color: DIM2 }}>— {q.name}</figcaption>
-              </figure>
-            ))}
-          </div>
-        </div>
-      </section>
+      <ReviewsSection />
 
       <section className="reveal" style={{ padding: "88px 24px 40px", textAlign: "center" }}>
         <div style={{ maxWidth: 600, margin: "0 auto" }}>
@@ -1040,6 +1022,116 @@ function HomePage({ onAdd }) {
         </div>
       </section>
     </>
+  );
+}
+
+// ── REVIEWS (live, moderated) ───────────────────────────────────
+// Approved reviews come from the Supabase `reviews` table. Visitors submit
+// new ones as "pending"; they only appear after an admin approves them in
+// the dashboard. Setup: reviews-setup.sql (run once in Supabase).
+function ReviewsSection() {
+  const { t } = useI18n();
+  const [reviews, setReviews] = useState([]);
+  const [loaded, setLoaded] = useState(false);
+  const [name, setName] = useState("");
+  const [rating, setRating] = useState(5);
+  const [text, setText] = useState("");
+  const [photo, setPhoto] = useState(null);
+  const [sending, setSending] = useState(false);
+  const [done, setDone] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let live = true;
+    supabase.from("reviews").select("id, name, rating, body, photo_url, created_at")
+      .eq("status", "approved").order("created_at", { ascending: false })
+      .then(({ data }) => { if (live) { setReviews(data || []); setLoaded(true); } });
+    return () => { live = false; };
+  }, []);
+
+  async function submit(e) {
+    e.preventDefault();
+    setError("");
+    if (!name.trim() || !text.trim()) { setError(t("home.reviewError")); return; }
+    if (photo && photo.size > 5 * 1024 * 1024) { setError(t("home.reviewPhotoTooBig")); return; }
+    setSending(true);
+    try {
+      let photoUrl = null;
+      if (photo) {
+        const ext = (photo.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+        const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+        const { error: upErr } = await supabase.storage.from("review-photos").upload(path, photo);
+        if (upErr) throw upErr;
+        photoUrl = supabase.storage.from("review-photos").getPublicUrl(path).data.publicUrl;
+      }
+      const { error: insErr } = await supabase.from("reviews").insert({
+        name: name.trim().slice(0, 80), rating, body: text.trim().slice(0, 2000),
+        photo_url: photoUrl, status: "pending",
+      });
+      if (insErr) throw insErr;
+      setDone(true);
+    } catch (_) {
+      setError(t("home.reviewError"));
+    }
+    setSending(false);
+  }
+
+  const inputStyle = {
+    width: "100%", boxSizing: "border-box", padding: "11px 13px", fontSize: 13.5,
+    fontFamily: SANS, color: fg(0.92), border: `1px solid ${BORDER}`, borderRadius: 6,
+    background: fg(0.05), outline: "none",
+  };
+
+  return (
+    <section style={{ padding: "76px 24px 84px", background: "var(--bg2)", borderTop: `1px solid ${BORDER}`, borderBottom: `1px solid ${BORDER}` }}>
+      <div className="wrap">
+        <SectionHead eyebrow={t("home.testimonialsEyebrow")} title={t("home.testimonialsTitle")} />
+        {loaded && reviews.length === 0 ? (
+          <p style={{ textAlign: "center", color: DIM, fontSize: 14, lineHeight: 1.9, maxWidth: 520, margin: "0 auto 8px" }}>
+            {t("home.reviewsEmpty")}
+          </p>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(270px,1fr))", gap: 22 }}>
+            {reviews.map((q) => (
+              <figure key={q.id} className="card reveal" style={{ padding: 28, margin: 0 }}>
+                <div style={{ color: GOLD, marginBottom: 12, fontSize: 15, letterSpacing: 3 }} aria-label={`${q.rating} / 5`}>{"★".repeat(q.rating)}{"☆".repeat(5 - q.rating)}</div>
+                {q.photo_url && <img src={q.photo_url} alt="" loading="lazy" style={{ width: "100%", borderRadius: 6, marginBottom: 14, border: `1px solid ${BORDER}` }} />}
+                <blockquote style={{ fontSize: 13.5, color: DIM, lineHeight: 1.9, marginBottom: 16 }}>“{q.body}”</blockquote>
+                <figcaption style={{ fontSize: 11, letterSpacing: "0.18em", color: DIM2 }}>— {q.name}</figcaption>
+              </figure>
+            ))}
+          </div>
+        )}
+        <p style={{ textAlign: "center", color: DIM2, fontSize: 12, marginTop: 26 }}>{t("home.reviewsNote")}</p>
+
+        <div style={{ maxWidth: 560, margin: "34px auto 0", border: `1px solid ${BORDER}`, borderRadius: 8, background: GLASS, padding: 26 }}>
+          <div style={{ fontFamily: SERIF, fontSize: 21, color: GOLD, fontWeight: 300, marginBottom: 18 }}>{t("home.reviewFormTitle")}</div>
+          {done ? (
+            <p style={{ fontSize: 13.5, color: DIM, lineHeight: 1.9, margin: 0 }}>{t("home.reviewThanks")}</p>
+          ) : (
+            <form onSubmit={submit} style={{ display: "grid", gap: 13 }}>
+              <input value={name} onChange={(e) => setName(e.target.value)} placeholder={t("home.reviewName")} maxLength={80} style={inputStyle} />
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ fontSize: 12, color: DIM2, marginRight: 4 }}>{t("home.reviewRating")}</span>
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <button key={n} type="button" onClick={() => setRating(n)} aria-label={`${n} / 5`}
+                    style={{ background: "none", border: "none", cursor: "pointer", fontSize: 21, padding: 2, color: n <= rating ? GOLD : fg(0.3) }}>★</button>
+                ))}
+              </div>
+              <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder={t("home.reviewText")} maxLength={2000} rows={4} style={{ ...inputStyle, resize: "vertical" }} />
+              <label style={{ fontSize: 12.5, color: DIM, display: "grid", gap: 7 }}>
+                {t("home.reviewPhoto")}
+                <input type="file" accept="image/*" onChange={(e) => setPhoto(e.target.files && e.target.files[0] ? e.target.files[0] : null)} style={{ fontSize: 12.5, color: DIM }} />
+              </label>
+              {error && <div style={{ fontSize: 12.5, color: "#e07856", lineHeight: 1.7 }}>{error}</div>}
+              <div>
+                <Btn type="submit" disabled={sending}>{sending ? t("home.reviewSending") : t("home.reviewSubmit")}</Btn>
+              </div>
+            </form>
+          )}
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -2129,7 +2221,7 @@ const buttonStyle = {
 const ghostButton = { ...buttonStyle, background: "transparent", border: `1px solid ${GOLD}`, color: GOLD };
 
 // ── DASHBOARD ───────────────────────────────────────────────────
-const TABS = [["products", "Products"], ["orders", "Orders"], ["customers", "Customers"], ["analytics", "Analytics"]];
+const TABS = [["products", "Products"], ["orders", "Orders"], ["customers", "Customers"], ["reviews", "Reviews"], ["analytics", "Analytics"]];
 
 function Dashboard({ onLogout }) {
   const [tab, setTab] = useState("products");
@@ -2156,6 +2248,7 @@ function Dashboard({ onLogout }) {
         {tab === "products"  && <ProductsTab />}
         {tab === "orders"    && <OrdersTab />}
         {tab === "customers" && <CustomersTab />}
+        {tab === "reviews"   && <ReviewsTab />}
         {tab === "analytics" && <AnalyticsTab />}
       </div>
     </div>
@@ -2255,6 +2348,89 @@ function OrdersTab() {
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+// ── REVIEWS TAB ─────────────────────────────────────────────────
+// Moderation queue for the homepage reviews. New submissions arrive as
+// "pending"; only "approved" ones show on the public site.
+function ReviewsTab() {
+  const [reviews, setReviews] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState("pending");
+
+  useEffect(() => { load(); }, []);
+
+  async function load() {
+    setLoading(true);
+    const { data, error } = await supabase.from("reviews").select("*").order("created_at", { ascending: false });
+    if (!error) setReviews(data || []);
+    setLoading(false);
+  }
+
+  async function setStatus(id, status) {
+    const { error } = await supabase.from("reviews").update({ status }).eq("id", id);
+    if (error) { alert("Update failed: " + error.message); return; }
+    setReviews((prev) => prev.map((r) => (r.id === id ? { ...r, status } : r)));
+  }
+
+  async function remove(id) {
+    if (!window.confirm("Delete this review for good?")) return;
+    const { error } = await supabase.from("reviews").delete().eq("id", id);
+    if (error) { alert("Delete failed: " + error.message); return; }
+    setReviews((prev) => prev.filter((r) => r.id !== id));
+  }
+
+  if (loading) return <Centered>Loading reviews…</Centered>;
+
+  const counts = {
+    pending: reviews.filter((r) => r.status === "pending").length,
+    approved: reviews.filter((r) => r.status === "approved").length,
+    denied: reviews.filter((r) => r.status === "denied").length,
+  };
+  const shown = reviews.filter((r) => r.status === filter);
+  const smallBtn = {
+    padding: "5px 10px", fontSize: 11, letterSpacing: 0.6, textTransform: "uppercase", fontWeight: 600,
+    border: `1px solid ${ADMIN_BORDER}`, borderRadius: 4, background: fg(0.05), color: fg(0.85), cursor: "pointer",
+  };
+
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 18, flexWrap: "wrap" }}>
+        {["pending", "approved", "denied"].map((s) => (
+          <button key={s} onClick={() => setFilter(s)} style={{
+            ...smallBtn, color: filter === s ? GOLD : fg(0.6),
+            borderColor: filter === s ? GOLD : ADMIN_BORDER,
+          }}>{s} ({counts[s]})</button>
+        ))}
+      </div>
+      {shown.length === 0 && (
+        <div style={{ color: fg(0.55), fontSize: 13, fontFamily: SANS }}>
+          No {filter} reviews right now.
+        </div>
+      )}
+      <div style={{ display: "grid", gap: 14 }}>
+        {shown.map((r) => (
+          <div key={r.id} style={{ border: `1px solid ${ADMIN_BORDER}`, borderRadius: 8, background: ADMIN_GLASS, padding: 18, fontFamily: SANS }}>
+            <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+              {r.photo_url && <img src={r.photo_url} alt="" style={{ width: 84, height: 84, objectFit: "cover", borderRadius: 6, border: `1px solid ${ADMIN_BORDER}` }} />}
+              <div style={{ flex: "1 1 260px", minWidth: 220 }}>
+                <div style={{ color: GOLD, fontSize: 14, letterSpacing: 3 }}>{"★".repeat(r.rating)}{"☆".repeat(5 - r.rating)}</div>
+                <div style={{ fontSize: 14, color: fg(0.92), margin: "6px 0 2px", fontWeight: 600 }}>{r.name}</div>
+                <div style={{ fontSize: 11.5, color: fg(0.45), marginBottom: 8 }}>{new Date(r.created_at).toLocaleString()}</div>
+                <div style={{ fontSize: 13, color: fg(0.78), lineHeight: 1.75 }}>{r.body}</div>
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
+              {r.status !== "approved" && <button onClick={() => setStatus(r.id, "approved")} style={smallBtn}>Approve</button>}
+              {r.status !== "denied" && <button onClick={() => setStatus(r.id, "denied")} style={smallBtn}>Deny</button>}
+              {r.status !== "pending" && <button onClick={() => setStatus(r.id, "pending")} style={smallBtn}>Back to pending</button>}
+              <button onClick={() => remove(r.id)} style={{ ...smallBtn, color: "#e07856" }}>Delete</button>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
