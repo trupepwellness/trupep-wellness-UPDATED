@@ -2245,16 +2245,14 @@ function Dashboard({ onLogout }) {
           <button onClick={onLogout} style={ghostButton}>Log Out</button>
         </div>
 
-        <div style={{ display: "flex", gap: 8, marginBottom: 28, borderBottom: `1px solid ${ADMIN_BORDER}` }}>
-          {TABS.map(([id, label]) => (
-            <button key={id} onClick={() => setTab(id)} style={{
-              padding: "10px 18px", fontSize: 11, letterSpacing: 1.5, textTransform: "uppercase",
-              fontWeight: 600, background: "none", border: "none", cursor: "pointer",
-              color: tab === id ? GOLD : fg(0.5),
-              borderBottom: tab === id ? `2px solid ${GOLD}` : "2px solid transparent",
-              marginBottom: -1,
-            }}>{label}</button>
-          ))}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 28, flexWrap: "wrap" }}>
+          <label htmlFor="admin-section" style={{ fontSize: 11, letterSpacing: 1.5, textTransform: "uppercase", fontWeight: 600, color: fg(0.5) }}>Section</label>
+          <select id="admin-section" value={tab} onChange={(e) => setTab(e.target.value)}
+            style={{ ...selectStyle, padding: "10px 14px", fontSize: 13, borderRadius: 6, minWidth: 220, cursor: "pointer" }}>
+            {TABS.map(([id, label]) => (
+              <option key={id} value={id}>{label}</option>
+            ))}
+          </select>
         </div>
 
         {tab === "products"  && <ProductsTab />}
