@@ -39,7 +39,7 @@ const PAY_METHODS = [
 
 // The admin dashboard is not linked anywhere on the site. It lives at
 // https://www.trupepwellness.com/#/<ADMIN_ROUTE> — see the PR notes.
-const ADMIN_ROUTE = "ops-tp7k2m";
+const ADMIN_ROUTE = "admin";
 
 // Set to true once Tristan has approved the real returns policy text
 // (removes the "draft" banner from the Returns page).
