@@ -2343,10 +2343,10 @@ const buttonStyle = {
 const ghostButton = { ...buttonStyle, background: "transparent", border: `1px solid ${GOLD}`, color: GOLD };
 
 // ── DASHBOARD ───────────────────────────────────────────────────
-const TABS = [["products", "Products"], ["stacks", "Stacks"], ["orders", "Orders"], ["customers", "Customers"], ["reviews", "Reviews"], ["analytics", "Analytics"]];
+const TABS = [["home", "Command Center"], ["products", "Products"], ["stacks", "Stacks"], ["orders", "Orders"], ["customers", "Customers"], ["reviews", "Reviews"], ["analytics", "Analytics"]];
 
 function Dashboard({ onLogout }) {
-  const [tab, setTab] = useState("products");
+  const [tab, setTab] = useState("home");
   return (
     <div style={{ padding: "100px 24px 80px" }}>
       <div style={{ maxWidth: 1100, margin: "0 auto" }}>
@@ -2365,12 +2365,223 @@ function Dashboard({ onLogout }) {
           </select>
         </div>
 
+        {tab === "home"      && <CommandCenterHome onJump={setTab} />}
         {tab === "products"  && <ProductsTab />}
         {tab === "stacks"    && <StacksTab />}
         {tab === "orders"    && <OrdersTab />}
         {tab === "customers" && <CustomersTab />}
         {tab === "reviews"   && <ReviewsTab />}
         {tab === "analytics" && <AnalyticsTab />}
+      </div>
+    </div>
+  );
+}
+
+// ── COMMAND CENTER (admin home) ─────────────────────────────────
+// Origin OS pilot: the first screen after admin sign-in. Every number
+// below is computed live from the same tables the admin sections already
+// read (orders, reviews, customers, products, site_events) — no new
+// tables and no new data sources. Neon styling is scoped to this screen
+// only; the rest of the admin keeps the standard TruPep theme.
+const CC_LIME = "#B7FF2E";
+const CC_PURPLE = "#A855F7";
+const CC_PURPLE_SOFT = "#C084FC";
+const CC_TEXT = "#F5F2FF";
+const CC_MUTED = "rgba(245,242,255,0.64)";
+const CC_FAINT = "rgba(245,242,255,0.42)";
+const CC_PANEL = "rgba(168,85,247,0.07)";
+const CC_LINE = "rgba(168,85,247,0.38)";
+const CC_LINE_LIME = "rgba(183,255,46,0.55)";
+const ccMoney = (n) => "$" + (Number(n) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const ccGrid = (min) => ({ display: "grid", gridTemplateColumns: `repeat(auto-fit,minmax(${min}px,1fr))`, gap: 12 });
+
+function CcStat({ label, value, hint, hot }) {
+  return (
+    <div style={{
+      background: hot ? "rgba(183,255,46,0.07)" : CC_PANEL,
+      border: `1px solid ${hot ? CC_LINE_LIME : CC_LINE}`,
+      borderRadius: 10, padding: "15px 17px",
+      boxShadow: hot ? "0 0 18px rgba(183,255,46,0.18)" : "none",
+    }}>
+      <div style={{ fontSize: 10, letterSpacing: 2, textTransform: "uppercase", fontWeight: 700, color: hot ? CC_LIME : CC_PURPLE_SOFT }}>{label}</div>
+      <div style={{ fontSize: 30, fontWeight: 800, lineHeight: 1.15, marginTop: 5, color: CC_TEXT, fontFamily: "ui-monospace, Menlo, Consolas, monospace" }}>{value}</div>
+      {hint && <div style={{ fontSize: 11, color: CC_MUTED, marginTop: 3, lineHeight: 1.5 }}>{hint}</div>}
+    </div>
+  );
+}
+
+function CommandCenterHome({ onJump }) {
+  const [d, setD] = useState(null); // null = still loading
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      const since7 = new Date(Date.now() - 7 * 86400000).toISOString();
+      const safe = (p) => p.then((r) => (r.error ? null : r.data)).catch(() => null);
+      const [orders, reviews, custCount, products, views] = await Promise.all([
+        safe(supabase.from("orders").select("id,created_at,total,payment_status,fulfillment_status,customer_name,guest").order("created_at", { ascending: false }).limit(300)),
+        safe(supabase.from("reviews").select("id,name,rating,status,created_at").order("created_at", { ascending: false }).limit(300)),
+        supabase.from("customers").select("id", { count: "exact", head: true }).then((r) => (r.error ? null : r.count)).catch(() => null),
+        safe(supabase.from("products").select("id,active,stock_quantity,low_stock_threshold")),
+        safe(supabase.from("site_events").select("created_at,meta").eq("event_type", "page_view").gte("created_at", since7).order("created_at", { ascending: true }).range(0, 999)),
+      ]);
+      if (!live) return;
+      if (!orders && !reviews && !products && custCount == null) { setFailed(true); setD({}); return; }
+      setD({ orders: orders || [], reviews: reviews || [], custCount, products: products || [], views });
+    })();
+    return () => { live = false; };
+  }, []);
+
+  if (!d) return <Centered>Loading command center…</Centered>;
+  if (failed) {
+    return (
+      <div style={{ padding: 24, border: `1px solid ${ADMIN_BORDER}`, borderRadius: 8, background: ADMIN_GLASS, fontFamily: SANS, fontSize: 13, lineHeight: 1.8, color: fg(0.8) }}>
+        <strong style={{ color: GOLD }}>Command Center could not load its numbers.</strong> The store data did not come back — check the connection and reload. Every section still works from the Section menu above.
+      </div>
+    );
+  }
+
+  const now = Date.now();
+  const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
+  const since30 = now - 30 * 86400000;
+  const inWin = (o, from) => new Date(o.created_at).getTime() >= from;
+  const orders30 = d.orders.filter((o) => inWin(o, since30));
+  const paid30 = orders30.filter((o) => o.payment_status === "paid");
+  const revenue30 = paid30.reduce((s, o) => s + (Number(o.total) || 0), 0);
+  const ordersToday = d.orders.filter((o) => inWin(o, dayStart.getTime()));
+  const paidToday = ordersToday.filter((o) => o.payment_status === "paid").reduce((s, o) => s + (Number(o.total) || 0), 0);
+  const newOrders = d.orders.filter((o) => o.fulfillment_status === "new");
+  const pendingReviews = d.reviews.filter((r) => r.status === "pending");
+  const activeProducts = d.products.filter((p) => p.active !== false);
+  const lowStock = activeProducts.filter((p) => p.stock_quantity != null && p.low_stock_threshold != null && Number(p.stock_quantity) <= Number(p.low_stock_threshold));
+  const viewsCapped = !!(d.views && d.views.length >= 1000);
+  const visitors = d.views ? new Set(d.views.map((e) => e.meta && e.meta.s).filter(Boolean)).size : null;
+  const perDay = [];
+  for (let i = 6; i >= 0; i--) {
+    const dt = new Date(now - i * 86400000);
+    const key = dt.toLocaleDateString();
+    perDay.push({ label: dt.toLocaleDateString(undefined, { weekday: "short" }), n: (d.views || []).filter((e) => new Date(e.created_at).toLocaleDateString() === key).length });
+  }
+  const maxDay = Math.max(1, ...perDay.map((x) => x.n));
+
+  const attention = [];
+  if (pendingReviews.length) attention.push({ n: pendingReviews.length, label: pendingReviews.length === 1 ? "review waiting for approval" : "reviews waiting for approval", tab: "reviews", cta: "Review them" });
+  if (newOrders.length) attention.push({ n: newOrders.length, label: newOrders.length === 1 ? "new order waiting to be processed" : "new orders waiting to be processed", tab: "orders", cta: "Open orders" });
+  if (lowStock.length) attention.push({ n: lowStock.length, label: lowStock.length === 1 ? "product at or below its low-stock line" : "products at or below their low-stock lines", tab: "products", cta: "Check stock" });
+
+  const TILES = [
+    ["products", "Products", "Catalog, prices, photos, stock", FlaskConical],
+    ["stacks", "Stacks", "Build and price peptide stacks", Layers],
+    ["orders", "Orders", "Payments and fulfillment", ShoppingBag],
+    ["customers", "Customers", "Accounts and lifetime spend", User],
+    ["reviews", "Reviews", "Approve what shows on the site", MessageSquare],
+    ["analytics", "Analytics", "Visitors, views and funnels", Zap],
+  ];
+  const payChip = (s) => s === "paid"
+    ? { color: CC_LIME, border: `1px solid ${CC_LINE_LIME}` }
+    : s === "refunded"
+      ? { color: "#FF9A9A", border: "1px solid rgba(255,122,122,0.5)" }
+      : { color: CC_PURPLE_SOFT, border: `1px solid ${CC_LINE}` };
+
+  return (
+    <div style={{
+      fontFamily: SANS, color: CC_TEXT, borderRadius: 14, padding: "26px 26px 30px",
+      border: `1px solid ${CC_LINE}`,
+      background: "radial-gradient(900px 300px at 12% -60px, rgba(168,85,247,0.30), rgba(168,85,247,0) 60%), radial-gradient(700px 260px at 92% -40px, rgba(183,255,46,0.15), rgba(183,255,46,0) 55%), linear-gradient(180deg, #0B0618 0%, #07030F 100%)",
+      boxShadow: "0 0 0 1px rgba(183,255,46,0.07), 0 22px 55px rgba(168,85,247,0.13)",
+    }}>
+      <div style={{ height: 3, borderRadius: 2, marginBottom: 22, background: `linear-gradient(90deg, ${CC_LIME}, #7CFFB2 45%, ${CC_PURPLE})` }} />
+
+      <div style={{ fontSize: 10, letterSpacing: 3.5, fontWeight: 700, color: CC_LIME, textTransform: "uppercase" }}>TruPep Wellness · Admin</div>
+      <div style={{
+        fontSize: 36, fontWeight: 800, letterSpacing: 2.5, lineHeight: 1.1, marginTop: 6, textTransform: "uppercase",
+        backgroundImage: `linear-gradient(92deg, ${CC_LIME} 5%, #7CFFB2 42%, ${CC_PURPLE_SOFT} 95%)`,
+        WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent",
+      }}>Command Center</div>
+      <div style={{ fontSize: 12.5, color: CC_MUTED, marginTop: 6 }}>
+        Everything that matters, one screen — {new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" })}.
+      </div>
+
+      <div style={{ marginTop: 22, background: "rgba(7,3,15,0.55)", border: `1px solid ${pendingReviews.length ? CC_LINE_LIME : CC_LINE}`, borderRadius: 10, padding: "14px 17px" }}>
+        <div style={{ fontSize: 10, letterSpacing: 2, textTransform: "uppercase", fontWeight: 700, color: CC_PURPLE_SOFT, marginBottom: attention.length ? 10 : 0 }}>Needs attention</div>
+        {attention.length === 0 && <div style={{ fontSize: 13, color: CC_MUTED }}>All clear — nothing is waiting on you right now.</div>}
+        {attention.map((a, i) => (
+          <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "7px 0", borderTop: i ? "1px solid rgba(245,242,255,0.07)" : "none" }}>
+            <span style={{ width: 9, height: 9, borderRadius: "50%", background: CC_LIME, boxShadow: `0 0 10px ${CC_LIME}`, flexShrink: 0 }} />
+            <span style={{ fontSize: 14 }}><strong style={{ color: CC_LIME }}>{a.n}</strong> {a.label}</span>
+            <button onClick={() => onJump(a.tab)} style={{ marginLeft: "auto", background: "transparent", border: `1px solid ${CC_LINE_LIME}`, color: CC_LIME, borderRadius: 6, padding: "6px 13px", fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", cursor: "pointer", fontFamily: SANS }}>{a.cta}</button>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ ...ccGrid(172), marginTop: 14 }}>
+        <CcStat label="Revenue · 30 days" value={ccMoney(revenue30)} hint={`${paid30.length} paid orders · ${orders30.length - paid30.length} not marked paid`} />
+        <CcStat label="Orders today" value={ordersToday.length} hint={`${ccMoney(paidToday)} paid so far today`} />
+        <CcStat label="Reviews to approve" value={pendingReviews.length} hint={pendingReviews.length ? "Sitting in the moderation queue" : "Moderation queue is clear"} hot={pendingReviews.length > 0} />
+        <CcStat label="Customers" value={d.custCount == null ? "—" : d.custCount} hint="Accounts on file" />
+        <CcStat label="Products" value={d.products.length} hint={`${activeProducts.length} active${lowStock.length ? ` · ${lowStock.length} low stock` : ""}`} />
+        <CcStat label="Visitors · 7 days" value={visitors == null ? "—" : visitors + (viewsCapped ? "+" : "")} hint={visitors == null ? "Analytics not readable for this login" : `${(d.views || []).length}${viewsCapped ? "+" : ""} page views this week`} />
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))", gap: 12, marginTop: 14 }}>
+        <div style={{ background: CC_PANEL, border: `1px solid ${CC_LINE}`, borderRadius: 10, padding: "17px 19px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+            <div style={{ fontSize: 10, letterSpacing: 2, textTransform: "uppercase", fontWeight: 700, color: CC_PURPLE_SOFT }}>Recent orders</div>
+            <button onClick={() => onJump("orders")} style={{ background: "transparent", border: "none", color: CC_LIME, fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", cursor: "pointer", fontFamily: SANS }}>View all</button>
+          </div>
+          {d.orders.length === 0 && <div style={{ fontSize: 13, color: CC_MUTED, padding: "10px 0" }}>No orders yet — they'll land here the moment someone checks out.</div>}
+          {d.orders.slice(0, 5).map((o) => (
+            <div key={o.id} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "9px 0", borderBottom: "1px solid rgba(245,242,255,0.07)" }}>
+              <strong style={{ letterSpacing: 0.5, fontSize: 13 }}>{orderNumberOf(o.id)}</strong>
+              <span style={{ fontSize: 12, color: CC_MUTED }}>{o.customer_name || "Customer"}{o.guest ? " · Guest" : ""}</span>
+              <span style={{ marginLeft: "auto", fontSize: 13, fontWeight: 700 }}>{ccMoney(o.total)}</span>
+              <span style={{ ...payChip(o.payment_status), fontSize: 10, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase", borderRadius: 20, padding: "2.5px 9px" }}>{o.payment_status}</span>
+              <span style={{ fontSize: 10, letterSpacing: 0.5, textTransform: "uppercase", color: CC_FAINT, border: "1px solid rgba(245,242,255,0.18)", borderRadius: 20, padding: "2.5px 9px" }}>{o.fulfillment_status}</span>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ background: CC_PANEL, border: `1px solid ${CC_LINE}`, borderRadius: 10, padding: "17px 19px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+            <div style={{ fontSize: 10, letterSpacing: 2, textTransform: "uppercase", fontWeight: 700, color: CC_PURPLE_SOFT }}>Traffic · page views, last 7 days</div>
+            <button onClick={() => onJump("analytics")} style={{ background: "transparent", border: "none", color: CC_LIME, fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", cursor: "pointer", fontFamily: SANS }}>Analytics</button>
+          </div>
+          {d.views == null && <div style={{ fontSize: 13, color: CC_MUTED, padding: "10px 0", lineHeight: 1.6 }}>Traffic isn't readable for this login yet — the Analytics section has the connection details.</div>}
+          {d.views != null && (
+            <div>
+              <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height: 86, paddingTop: 10 }}>
+                {perDay.map((x, i) => (
+                  <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: x.n ? CC_TEXT : CC_FAINT }}>{x.n}</div>
+                    <div style={{ width: "100%", maxWidth: 34, height: 52, display: "flex", alignItems: "flex-end", background: "rgba(245,242,255,0.05)", borderRadius: 4, overflow: "hidden" }}>
+                      <div style={{ width: "100%", height: `${x.n ? Math.max(10, Math.round((x.n / maxDay) * 100)) : 0}%`, background: `linear-gradient(180deg, ${CC_LIME}, ${CC_PURPLE})`, boxShadow: x.n ? "0 0 12px rgba(183,255,46,0.35)" : "none" }} />
+                    </div>
+                    <div style={{ fontSize: 10, color: CC_FAINT, textTransform: "uppercase", letterSpacing: 0.5 }}>{x.label}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ fontSize: 11.5, color: CC_MUTED, marginTop: 8 }}>{visitors} distinct visit{visitors === 1 ? "" : "s"} this week — full funnel and product detail live in Analytics.</div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div style={{ ...ccGrid(158), marginTop: 14 }}>
+        {TILES.map(([id, label, desc, Icon]) => (
+          <button key={id} onClick={() => onJump(id)} style={{
+            textAlign: "left", cursor: "pointer", fontFamily: SANS, color: CC_TEXT,
+            background: "rgba(7,3,15,0.55)", border: `1px solid ${CC_LINE}`, borderRadius: 10, padding: "15px 16px",
+          }}>
+            <Icon size={19} color={CC_LIME} />
+            <div style={{ fontSize: 14, fontWeight: 700, marginTop: 9, letterSpacing: 0.4 }}>{label}</div>
+            <div style={{ fontSize: 11.5, color: CC_MUTED, marginTop: 3, lineHeight: 1.5 }}>{desc}</div>
+          </button>
+        ))}
+      </div>
+
+      <div style={{ fontSize: 11, color: CC_FAINT, marginTop: 18, lineHeight: 1.6 }}>
+        Every number on this screen is computed live from the same orders, reviews, customers, products and visitor data the sections above manage — nothing here is estimated.
       </div>
     </div>
   );
