@@ -1056,6 +1056,63 @@ function HomePage({ onAdd }) {
 // Approved reviews come from the Supabase `reviews` table. Visitors submit
 // new ones as "pending"; they only appear after an admin approves them in
 // the dashboard. Setup: reviews-setup.sql (run once in Supabase).
+// Burn a watermark into a customer's review photo BEFORE it is uploaded, so
+// the only copy that ever exists publicly carries the brand: a repeating
+// diagonal name band plus a corner tag. Falls back to the original file if
+// anything goes wrong — a review is never lost over a watermark.
+async function watermarkReviewPhoto(file) {
+  try {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
+    const maxDim = 1600;
+    const scale = Math.min(1, maxDim / Math.max(img.naturalWidth, img.naturalHeight));
+    const w = Math.max(1, Math.round(img.naturalWidth * scale));
+    const h = Math.max(1, Math.round(img.naturalHeight * scale));
+    const c = document.createElement("canvas");
+    c.width = w; c.height = h;
+    const ctx = c.getContext("2d");
+    ctx.drawImage(img, 0, 0, w, h);
+    URL.revokeObjectURL(url);
+    const brand = "TRUPEP WELLNESS • TRUPEPWELLNESS.COM • ";
+    const fs = Math.max(16, Math.round(w * 0.042));
+    ctx.font = `700 ${fs}px Arial, sans-serif`;
+    const unit = ctx.measureText(brand).width;
+    const diag = Math.sqrt(w * w + h * h);
+    ctx.save();
+    ctx.translate(w / 2, h / 2);
+    ctx.rotate(-Math.atan2(h, w));
+    ctx.textBaseline = "middle";
+    for (let y = -diag / 2; y <= diag / 2; y += fs * 5.2) {
+      for (let x = -diag / 2; x <= diag / 2; x += unit) {
+        ctx.fillStyle = "rgba(0,0,0,0.20)";
+        ctx.fillText(brand, x + fs * 0.07, y + fs * 0.07);
+        ctx.fillStyle = "rgba(255,255,255,0.30)";
+        ctx.fillText(brand, x, y);
+      }
+    }
+    ctx.restore();
+    const tag = "TruPep Wellness";
+    const tfs = Math.max(13, Math.round(w * 0.03));
+    ctx.font = `600 ${tfs}px Arial, sans-serif`;
+    const tw = ctx.measureText(tag).width;
+    const pad = Math.round(tfs * 0.7);
+    const bx = w - tw - pad * 2 - Math.round(w * 0.02);
+    const by = h - tfs - pad * 2 - Math.round(w * 0.02);
+    ctx.fillStyle = "rgba(0,0,0,0.55)";
+    ctx.beginPath();
+    ctx.roundRect(bx, by, tw + pad * 2, tfs + pad * 2, (tfs + pad * 2) / 2);
+    ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,0.92)";
+    ctx.textBaseline = "middle";
+    ctx.fillText(tag, bx + pad, by + (tfs + pad * 2) / 2 + 1);
+    const blob = await new Promise((res) => c.toBlob(res, "image/jpeg", 0.88));
+    return blob || file;
+  } catch (_) {
+    return file;
+  }
+}
+
 function ReviewsSection() {
   const { t } = useI18n();
   const [reviews, setReviews] = useState([]);
@@ -1090,9 +1147,11 @@ function ReviewsSection() {
     try {
       let photoUrl = null;
       if (photo) {
-        const ext = (photo.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+        const stamped = await watermarkReviewPhoto(photo);
+        const wasStamped = stamped !== photo;
+        const ext = wasStamped ? "jpg" : (photo.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
         const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-        const { error: upErr } = await supabase.storage.from("review-photos").upload(path, photo);
+        const { error: upErr } = await supabase.storage.from("review-photos").upload(path, stamped, wasStamped ? { contentType: "image/jpeg" } : undefined);
         if (upErr) throw upErr;
         photoUrl = supabase.storage.from("review-photos").getPublicUrl(path).data.publicUrl;
       }
