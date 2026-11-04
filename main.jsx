@@ -2393,11 +2393,12 @@ const CC_PANEL = "rgba(168,85,247,0.07)";
 const CC_LINE = "rgba(168,85,247,0.38)";
 const CC_LINE_LIME = "rgba(183,255,46,0.55)";
 const ccMoney = (n) => "$" + (Number(n) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const ccGrid = (min) => ({ display: "grid", gridTemplateColumns: `repeat(auto-fit,minmax(${min}px,1fr))`, gap: 12 });
+const ccGrid = (min) => ({ display: "grid", gridTemplateColumns: `repeat(auto-fit,minmax(min(${min}px,100%),1fr))`, gap: 12 });
 
 function CcStat({ label, value, hint, hot }) {
   return (
     <div style={{
+      minWidth: 0,
       background: hot ? "rgba(183,255,46,0.07)" : CC_PANEL,
       border: `1px solid ${hot ? CC_LINE_LIME : CC_LINE}`,
       borderRadius: 10, padding: "15px 17px",
@@ -2524,8 +2525,8 @@ function CommandCenterHome({ onJump }) {
         <CcStat label="Visitors · 7 days" value={visitors == null ? "—" : visitors + (viewsCapped ? "+" : "")} hint={visitors == null ? "Analytics not readable for this login" : `${(d.views || []).length}${viewsCapped ? "+" : ""} page views this week`} />
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))", gap: 12, marginTop: 14 }}>
-        <div style={{ background: CC_PANEL, border: `1px solid ${CC_LINE}`, borderRadius: 10, padding: "17px 19px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(320px,100%),1fr))", gap: 12, marginTop: 14 }}>
+        <div style={{ minWidth: 0, background: CC_PANEL, border: `1px solid ${CC_LINE}`, borderRadius: 10, padding: "17px 19px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
             <div style={{ fontSize: 10, letterSpacing: 2, textTransform: "uppercase", fontWeight: 700, color: CC_PURPLE_SOFT }}>Recent orders</div>
             <button onClick={() => onJump("orders")} style={{ background: "transparent", border: "none", color: CC_LIME, fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", cursor: "pointer", fontFamily: SANS }}>View all</button>
@@ -2542,7 +2543,7 @@ function CommandCenterHome({ onJump }) {
           ))}
         </div>
 
-        <div style={{ background: CC_PANEL, border: `1px solid ${CC_LINE}`, borderRadius: 10, padding: "17px 19px" }}>
+        <div style={{ minWidth: 0, background: CC_PANEL, border: `1px solid ${CC_LINE}`, borderRadius: 10, padding: "17px 19px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
             <div style={{ fontSize: 10, letterSpacing: 2, textTransform: "uppercase", fontWeight: 700, color: CC_PURPLE_SOFT }}>Traffic · page views, last 7 days</div>
             <button onClick={() => onJump("analytics")} style={{ background: "transparent", border: "none", color: CC_LIME, fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", cursor: "pointer", fontFamily: SANS }}>Analytics</button>
@@ -2570,7 +2571,7 @@ function CommandCenterHome({ onJump }) {
       <div style={{ ...ccGrid(158), marginTop: 14 }}>
         {TILES.map(([id, label, desc, Icon]) => (
           <button key={id} onClick={() => onJump(id)} style={{
-            textAlign: "left", cursor: "pointer", fontFamily: SANS, color: CC_TEXT,
+            minWidth: 0, textAlign: "left", cursor: "pointer", fontFamily: SANS, color: CC_TEXT,
             background: "rgba(7,3,15,0.55)", border: `1px solid ${CC_LINE}`, borderRadius: 10, padding: "15px 16px",
           }}>
             <Icon size={19} color={CC_LIME} />
