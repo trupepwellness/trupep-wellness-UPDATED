@@ -3596,9 +3596,27 @@ function SiteTour() {
       const el = document.querySelector(`[data-tour="${s.target}"]`);
       if (el) setRect(el.getBoundingClientRect());
     };
+    // Re-measure while the page scrolls (smooth scroll / late-loading sections),
+    // so the card always ends up next to its target.
+    let raf = 0;
+    const onScroll = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(onResize); };
     window.addEventListener("resize", onResize);
-    return () => { clearTimeout(timer); window.removeEventListener("resize", onResize); };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => { clearTimeout(timer); cancelAnimationFrame(raf); window.removeEventListener("resize", onResize); window.removeEventListener("scroll", onScroll); };
   }, [step, route.page]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Lock the page while the tour runs — the visitor can't scroll away and
+  // lose the highlight/card. The tour itself still scrolls each target into
+  // view programmatically between steps; the lock lifts when the tour ends.
+  useEffect(() => {
+    if (!running) return;
+    const root = document.documentElement;
+    const prevRoot = root.style.overflow;
+    const prevBody = document.body.style.overflow;
+    root.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+    return () => { root.style.overflow = prevRoot; document.body.style.overflow = prevBody; };
+  }, [running]);
 
   // Focus the card when it appears or the step changes; Esc closes.
   useEffect(() => {
