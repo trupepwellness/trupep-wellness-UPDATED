@@ -139,8 +139,8 @@ const BG     = "var(--bg)";
 const FG     = "var(--fg)";
 const OK     = "var(--ok)";
 const ERR    = "var(--err)";
-const SERIF  = "'Cormorant Garamond', serif";
-const SANS   = "'Montserrat', sans-serif";
+const SERIF  = "var(--brand-serif, 'Cormorant Garamond', serif)";
+const SANS   = "var(--brand-sans, 'Montserrat', sans-serif)";
 const DIM    = "var(--dim)";
 const DIM2   = "var(--dim2)";
 const DIM3   = "var(--dim3)";
@@ -196,6 +196,13 @@ const G = `
   html{scroll-behavior:smooth;color-scheme:dark;-webkit-text-size-adjust:100%}
   html[data-theme="light"]{color-scheme:light}
   body{background:var(--bg);color:var(--fg);font-family:${SANS};font-size:14px;line-height:1.6;-webkit-font-smoothing:antialiased;overflow-x:hidden;transition:background-color .35s ease,color .35s ease}
+  html[data-fsize="small"] body{font-size:13px}
+  html[data-fsize="large"] body{font-size:16px}
+  html[data-fsize="large"] .card p{font-size:14.5px;line-height:1.75}
+  html[data-fsize="large"] .btn{font-size:11px}
+  html[data-fsize="xlarge"] body{font-size:22px}
+  html[data-fsize="xlarge"] .card p{font-size:19px;line-height:1.75}
+  html[data-fsize="xlarge"] .btn{font-size:12.5px}
   a{color:inherit;text-decoration:none}
   button{cursor:pointer;border:none;background:none;font-family:inherit;color:inherit}
   input,textarea,select{outline:none;font-family:inherit;color:var(--fg);background:var(--input-bg)}
@@ -512,6 +519,39 @@ function ProductsProvider({ children }) {
 const useProducts = () => useContext(ProductsContext);
 const pName = (p, lang) => (lang === "es" && p.name_es ? p.name_es : p.name);
 const pDesc = (p, lang) => (lang === "es" && p.desc_es ? p.desc_es : p.desc);
+
+// ── SETTINGS CONTEXT (site branding from Admin › Site Look) ─────
+// site_settings row 1 carries a `branding` jsonb: custom words (hero
+// headline/sub, tagline, footer text), headline + reading fonts, text size.
+// Blank words fall back to the built-in i18n copy.
+const HEADING_FONTS = { cormorant: "'Cormorant Garamond', serif", playfair: "'Playfair Display', serif", italiana: "'Italiana', serif" };
+const BODY_FONTS = { montserrat: "'Montserrat', sans-serif", jost: "'Jost', sans-serif", quicksand: "'Quicksand', sans-serif" };
+function applyBranding(b) {
+  try {
+    const de = document.documentElement;
+    de.style.setProperty("--brand-serif", HEADING_FONTS[b.heading_font] || HEADING_FONTS.cormorant);
+    de.style.setProperty("--brand-sans", BODY_FONTS[b.body_font] || BODY_FONTS.montserrat);
+    de.setAttribute("data-fsize", ["small", "medium", "large", "xlarge"].includes(b.font_size) ? b.font_size : "medium");
+  } catch (_) {}
+}
+const SettingsContext = createContext({ settings: null, refresh: () => {} });
+function SettingsProvider({ children }) {
+  const [settings, setSettings] = useState(null);
+  const refresh = useCallback(async () => {
+    try {
+      const { data, error } = await supabase.from("site_settings").select("*").eq("id", 1).maybeSingle();
+      if (!error && data) { setSettings(data); applyBranding(data.branding || {}); }
+    } catch (_) {}
+  }, []);
+  useEffect(() => { refresh(); }, [refresh]);
+  return <SettingsContext.Provider value={{ settings, refresh }}>{children}</SettingsContext.Provider>;
+}
+const useSettings = () => useContext(SettingsContext);
+// Custom words (Admin › Site Look). Blank = built-in wording.
+const brandText = (settings, key, fallback) => {
+  const v = settings && settings.branding && settings.branding[key];
+  return (typeof v === "string" && v.trim()) ? v : fallback;
+};
 
 // ── AUTH CONTEXT ────────────────────────────────────────────────
 // Tracks the customer's Supabase Auth session plus their `customers` row.
@@ -846,6 +886,7 @@ function Nav({ count, onCart, bumpKey }) {
 function Footer() {
   const { t } = useI18n();
   const { go } = useRouter();
+  const { settings } = useSettings();
   const col = (title, links) => (
     <div>
       <div className="eyebrow" style={{ marginBottom: 18, fontSize: 9.5 }}>{title}</div>
@@ -864,7 +905,7 @@ function Footer() {
               <img src={LOGO} alt="" width="36" height="36" style={{ width: 36, height: 36, objectFit: "contain" }} />
               <div style={{ fontFamily: SERIF, fontSize: 20, color: GOLD, letterSpacing: "0.12em" }}>TruPep Wellness</div>
             </div>
-            <div style={{ fontSize: 12, color: DIM, lineHeight: 1.9, maxWidth: 260 }}>{t("footer.tagline")}</div>
+            <div style={{ fontSize: 12, color: DIM, lineHeight: 1.9, maxWidth: 260 }}>{brandText(settings, "footer_tagline", t("footer.tagline"))}</div>
           </div>
           {col(t("footer.navigate"), [[t("nav.catalog"), "products"], [t("nav.stacks"), "stacks"], [t("nav.calculator"), "calculator"], [t("nav.howto"), "howto"], [t("nav.labresults"), "labresults"], [t("nav.about"), "about"]])}
           {col(t("footer.support"), [[t("nav.faq"), "faq"], [t("nav.shipping"), "shipping"], [t("nav.returns"), "returns"], [t("nav.contact"), "contact"]])}
@@ -937,6 +978,7 @@ function IntroPage() {
   const { t } = useI18n();
   const { enter } = useRouter();
   const { session, customer, loading } = useAuth();
+  const { settings } = useSettings();
   return (
     <div className="page-enter" style={{ position: "relative", minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "84px 20px 50px", overflow: "hidden" }}>
       <div style={{ position: "fixed", top: 14, right: 14, zIndex: 20, display: "flex", gap: 8, alignItems: "center" }}>
@@ -950,7 +992,7 @@ function IntroPage() {
       <div style={{ position: "relative", zIndex: 1, textAlign: "center", maxWidth: 430, width: "100%" }}>
         <FloatingHeroLogo />
         <h1 className="display" style={{ fontSize: 36, marginBottom: 8 }}>TruPep Wellness</h1>
-        <div style={{ fontSize: 10, letterSpacing: "0.32em", textTransform: "uppercase", color: DIM2, marginBottom: 26 }}>{t("intro.tagline")}</div>
+        <div style={{ fontSize: 10, letterSpacing: "0.32em", textTransform: "uppercase", color: DIM2, marginBottom: 26 }}>{brandText(settings, "tagline", t("intro.tagline"))}</div>
         <p style={{ fontSize: 12.5, color: DIM, lineHeight: 1.9, marginBottom: 26 }}><Rich text={t("intro.notice")} /></p>
         {loading ? (
           <div style={{ color: DIM2, fontSize: 12 }}>{t("common.loading")}</div>
@@ -971,6 +1013,7 @@ function IntroPage() {
 
 // ── HOME ────────────────────────────────────────────────────────
 function HomePage({ onAdd }) {
+  const { settings } = useSettings();
   const { t } = useI18n();
   const { go } = useRouter();
   const { products } = useProducts();
@@ -994,12 +1037,12 @@ function HomePage({ onAdd }) {
         <div aria-hidden="true" style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse at 50% 38%, var(--hero-glow) 0%, transparent 64%)", animation: "heroBreathe 7s ease-in-out infinite", pointerEvents: "none" }} />
         <img aria-hidden="true" alt="" src={LOGO2} style={{ position: "absolute", top: "50%", left: "50%", width: "min(620px,92vw)", transform: "translate(-50%,-52%)", opacity: 0.07, pointerEvents: "none", filter: "saturate(.8)" }} />
         <div style={{ position: "relative", zIndex: 1 }}>
-          <div className="eyebrow" style={{ marginBottom: 26, animation: "fadeUp .7s ease both" }}>{t("home.eyebrow")}</div>
+          <div className="eyebrow" style={{ marginBottom: 26, animation: "fadeUp .7s ease both" }}>{brandText(settings, "tagline", t("home.eyebrow"))}</div>
           <h1 className="display" style={{ fontSize: "clamp(46px,8vw,104px)", marginBottom: 26, animation: "fadeUp .8s .08s ease both" }}>
-            {t("home.h1a")}<br /><span style={{ color: GOLD }}>{t("home.h1b")}</span>
+            {brandText(settings, "hero_title_a", t("home.h1a"))}<br /><span style={{ color: GOLD }}>{brandText(settings, "hero_title_b", t("home.h1b"))}</span>
           </h1>
           <p style={{ fontSize: 15, color: DIM, maxWidth: 560, margin: "0 auto 40px", lineHeight: 1.9, animation: "fadeUp .8s .18s ease both" }}>
-            {t("home.sub", { n: n || "25", s: STACKS.length })}
+            {brandText(settings, "hero_sub", t("home.sub", { n: n || "25", s: STACKS.length }))}
           </p>
           <div style={{ display: "flex", gap: 14, justifyContent: "center", flexWrap: "wrap", animation: "fadeUp .8s .28s ease both" }}>
             <Btn onClick={() => go("products")}>{t("home.ctaShop")}<ArrowRight size={14} /></Btn>
@@ -2253,7 +2296,95 @@ const buttonStyle = {
 const ghostButton = { ...buttonStyle, background: "transparent", border: `1px solid ${GOLD}`, color: GOLD };
 
 // ── DASHBOARD ───────────────────────────────────────────────────
-const TABS = [["products", "Products"], ["orders", "Orders"], ["customers", "Customers"], ["reviews", "Reviews"], ["analytics", "Analytics"]];
+const TABS = [["products", "Products"], ["orders", "Orders"], ["customers", "Customers"], ["reviews", "Reviews"], ["analytics", "Analytics"], ["look", "Site Look"]];
+
+// ── SITE LOOK TAB (words, fonts, text size — site_settings.branding) ──
+function SiteLookTab() {
+  const { refresh } = useSettings();
+  const [brand, setBrand] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState("");
+  useEffect(() => {
+    supabase.from("site_settings").select("*").eq("id", 1).maybeSingle().then(({ data, error }) => {
+      if (error) { setMsg("Couldn't load settings: " + error.message); setBrand({}); return; }
+      setBrand((data && data.branding) || {});
+    });
+  }, []);
+  async function save() {
+    setSaving(true); setMsg("");
+    const b = {};
+    ["hero_title_a", "hero_title_b", "hero_sub", "tagline", "footer_tagline"].forEach((k) => { b[k] = (brand[k] || "").trim(); });
+    b.heading_font = brand.heading_font || "cormorant";
+    b.body_font = brand.body_font || "montserrat";
+    b.font_size = brand.font_size || "medium";
+    const { error } = await supabase.from("site_settings").update({ branding: b }).eq("id", 1);
+    setSaving(false);
+    if (error) { setMsg("Save failed: " + error.message); return; }
+    setMsg("Saved — the storefront now shows these.");
+    refresh();
+  }
+  if (!brand) return <Centered>Loading settings…</Centered>;
+  return (
+    <div style={{ border: `1px solid ${ADMIN_BORDER}`, borderRadius: 8, background: ADMIN_GLASS, padding: 24, fontFamily: SANS }}>
+      <div style={{ fontFamily: SERIF, fontSize: 22, color: GOLD, marginBottom: 6, fontWeight: 300 }}>Your Words &amp; Look</div>
+      <div style={{ fontSize: 12, color: fg(0.6), marginBottom: 16, lineHeight: 1.7 }}>
+        Make the site sound and look like you. Leave any box blank to keep the built-in wording.
+        Words you type show on both the English and Spanish pages, exactly as you type them.
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: "0 16px" }}>
+        <div>
+          <label style={labelStyle} htmlFor="brand-hero-a">Homepage headline — first line</label>
+          <input id="brand-hero-a" value={brand.hero_title_a || ""} placeholder="Advanced Research" onChange={(e) => setBrand((f) => ({ ...f, hero_title_a: e.target.value }))} style={inputStyle} />
+        </div>
+        <div>
+          <label style={labelStyle} htmlFor="brand-hero-b">Homepage headline — second line (gold)</label>
+          <input id="brand-hero-b" value={brand.hero_title_b || ""} placeholder="Peptide Compounds" onChange={(e) => setBrand((f) => ({ ...f, hero_title_b: e.target.value }))} style={inputStyle} />
+        </div>
+        <div>
+          <label style={labelStyle} htmlFor="brand-tagline">Tagline (entry screen + hero eyebrow)</label>
+          <input id="brand-tagline" value={brand.tagline || ""} placeholder="Miami's premier peptide wellness" onChange={(e) => setBrand((f) => ({ ...f, tagline: e.target.value }))} style={inputStyle} />
+        </div>
+        <div>
+          <label style={labelStyle} htmlFor="brand-heading-font">Headline style</label>
+          <select id="brand-heading-font" value={brand.heading_font || "cormorant"} onChange={(e) => setBrand((f) => ({ ...f, heading_font: e.target.value }))} style={inputStyle}>
+            <option value="cormorant">Elegant (Cormorant)</option>
+            <option value="playfair">Classic (Playfair)</option>
+            <option value="italiana">Sharp (Italiana)</option>
+          </select>
+        </div>
+        <div>
+          <label style={labelStyle} htmlFor="brand-body-font">Reading font</label>
+          <select id="brand-body-font" value={brand.body_font || "montserrat"} onChange={(e) => setBrand((f) => ({ ...f, body_font: e.target.value }))} style={inputStyle}>
+            <option value="montserrat">Clean (Montserrat)</option>
+            <option value="jost">Soft &amp; round (Jost)</option>
+            <option value="quicksand">Friendly (Quicksand)</option>
+          </select>
+        </div>
+        <div>
+          <label style={labelStyle} htmlFor="brand-font-size">Text size</label>
+          <select id="brand-font-size" value={brand.font_size || "medium"} onChange={(e) => setBrand((f) => ({ ...f, font_size: e.target.value }))} style={inputStyle}>
+            <option value="small">Compact</option>
+            <option value="medium">Regular</option>
+            <option value="large">Big &amp; easy to read</option>
+            <option value="xlarge">Extra big (22px)</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <label style={labelStyle} htmlFor="brand-hero-sub">Homepage paragraph under the headline</label>
+        <input id="brand-hero-sub" value={brand.hero_sub || ""} placeholder="Blank = built-in text (mentions your product count automatically)" onChange={(e) => setBrand((f) => ({ ...f, hero_sub: e.target.value }))} style={inputStyle} />
+      </div>
+      <div>
+        <label style={labelStyle} htmlFor="brand-footer">Footer description</label>
+        <input id="brand-footer" value={brand.footer_tagline || ""} placeholder="Premium research peptides…" onChange={(e) => setBrand((f) => ({ ...f, footer_tagline: e.target.value }))} style={inputStyle} />
+      </div>
+      {msg && <div role="status" style={{ fontSize: 12, color: msg.startsWith("Saved") ? "var(--ok)" : "var(--err)", margin: "4px 0 12px" }}>{msg}</div>}
+      <div style={{ display: "flex", gap: 12 }}>
+        <button onClick={save} disabled={saving} style={buttonStyle}>{saving ? "Saving…" : "Save Settings"}</button>
+      </div>
+    </div>
+  );
+}
 
 function Dashboard({ onLogout }) {
   const [tab, setTab] = useState("products");
@@ -2280,6 +2411,7 @@ function Dashboard({ onLogout }) {
         {tab === "customers" && <CustomersTab />}
         {tab === "reviews"   && <ReviewsTab />}
         {tab === "analytics" && <AnalyticsTab />}
+        {tab === "look"      && <SiteLookTab />}
       </div>
     </div>
   );
@@ -3884,10 +4016,12 @@ function App() {
       <LangProvider>
         <RouterProvider>
           <ProductsProvider>
-            <AuthProvider>
-              <style>{G}</style>
-              <Shell />
-            </AuthProvider>
+            <SettingsProvider>
+              <AuthProvider>
+                <style>{G}</style>
+                <Shell />
+              </AuthProvider>
+            </SettingsProvider>
           </ProductsProvider>
         </RouterProvider>
       </LangProvider>
