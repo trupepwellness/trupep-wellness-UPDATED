@@ -3581,13 +3581,24 @@ function SiteTour() {
       return;
     }
     lastStepRef.current = step;
-    let tries = 0; let timer;
+    let tries = 0; let timer; const settleTimers = [];
     const find = () => {
       const el = document.querySelector(`[data-tour="${s.target}"]`);
       if (el) {
         el.scrollIntoView({ block: "center", behavior: "smooth" });
-        setTimeout(() => setRect(el.getBoundingClientRect()), 400);
-        setTimeout(() => setRect(el.getBoundingClientRect()), 800);
+        // Settle loop (~2.7s): page hops and late-loading sections can move
+        // the target or undo the scroll (a route change scrolls back to the
+        // top). If the target isn't actually in view when re-checked,
+        // scroll to it again until it is.
+        [400, 900, 1500, 2100, 2700].forEach((ms) => {
+          settleTimers.push(setTimeout(() => {
+            const el2 = document.querySelector(`[data-tour="${s.target}"]`);
+            if (!el2) return;
+            const r = el2.getBoundingClientRect();
+            if (r.top > window.innerHeight - 60 || r.bottom < 60) el2.scrollIntoView({ block: "center", behavior: "smooth" });
+            setRect(el2.getBoundingClientRect());
+          }, ms));
+        });
       } else if (tries++ < 12) { timer = setTimeout(find, 150); }
       else setRect(null);
     };
@@ -3602,7 +3613,7 @@ function SiteTour() {
     const onScroll = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(onResize); };
     window.addEventListener("resize", onResize);
     window.addEventListener("scroll", onScroll, { passive: true });
-    return () => { clearTimeout(timer); cancelAnimationFrame(raf); window.removeEventListener("resize", onResize); window.removeEventListener("scroll", onScroll); };
+    return () => { clearTimeout(timer); settleTimers.forEach(clearTimeout); cancelAnimationFrame(raf); window.removeEventListener("resize", onResize); window.removeEventListener("scroll", onScroll); };
   }, [step, route.page]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Lock the page while the tour runs — the visitor can't scroll away and
