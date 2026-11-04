@@ -11,7 +11,7 @@ import {
   Flame, Droplets, Snowflake, Copy, Trash2, CircleHelp, Calculator, BookOpen, FileText,
   Microscope, Layers, Clock, Lock, Info,
 } from "lucide-react";
-import { CATEGORIES, STACKS } from "./catalog.js";
+import { CATEGORIES, STACKS as CATALOG_STACKS } from "./catalog.js";
 import { translate } from "./i18n.js";
 
 // ── SUPABASE ────────────────────────────────────────────────────
@@ -510,6 +510,31 @@ function ProductsProvider({ children }) {
   return <ProductsContext.Provider value={{ products, loading, error, refresh }}>{children}</ProductsContext.Provider>;
 }
 const useProducts = () => useContext(ProductsContext);
+
+// ── STACKS DATA ─────────────────────────────────────────────────
+// Stacks are built in Admin › Stacks and live in the Supabase `stacks` table.
+// The storefront reads ACTIVE stacks from there; catalog.js STACKS remains the
+// fallback so the stacks page never renders empty if the table is unreachable.
+const StacksContext = createContext({ stacks: CATALOG_STACKS, refreshStacks: () => {} });
+function mapStackRow(r) {
+  return {
+    id: r.id,
+    name: { en: r.name_en || "", es: r.name_es || r.name_en || "" },
+    tagline: { en: r.tagline_en || "", es: r.tagline_es || r.tagline_en || "" },
+    desc: { en: r.desc_en || "", es: r.desc_es || r.desc_en || "" },
+    items: (Array.isArray(r.items) ? r.items : []).filter((i) => i && i.id).map((i) => ({ id: i.id, name: i.name || i.id })),
+  };
+}
+function StacksProvider({ children }) {
+  const [stacks, setStacks] = useState(CATALOG_STACKS);
+  const refreshStacks = useCallback(async () => {
+    const { data, error } = await supabase.from("stacks").select("*").eq("active", true).order("sort", { ascending: true });
+    if (!error && data && data.length) setStacks(data.map(mapStackRow));
+  }, []);
+  useEffect(() => { refreshStacks(); }, [refreshStacks]);
+  return <StacksContext.Provider value={{ stacks, refreshStacks }}>{children}</StacksContext.Provider>;
+}
+const useStacks = () => useContext(StacksContext);
 const pName = (p, lang) => (lang === "es" && p.name_es ? p.name_es : p.name);
 const pDesc = (p, lang) => (lang === "es" && p.desc_es ? p.desc_es : p.desc);
 
@@ -974,6 +999,7 @@ function HomePage({ onAdd }) {
   const { t } = useI18n();
   const { go } = useRouter();
   const { products } = useProducts();
+  const { stacks } = useStacks();
   useReveal(products.length);
   const featuredIds = ["retatrutide", "bpc157", "nad", "tb500"];
   let featured = products.filter((p) => p.showcase);
@@ -982,7 +1008,7 @@ function HomePage({ onAdd }) {
   const n = products.length;
   const stats = [
     [n ? `${n}+` : "—", t("home.stats.compounds")],
-    [String(STACKS.length), t("home.stats.stacks")],
+    [String(stacks.length), t("home.stats.stacks")],
     [t("home.stats.miami"), t("home.stats.based")],
     [t("home.stats.free"), t("home.stats.consultation")],
   ];
@@ -999,7 +1025,7 @@ function HomePage({ onAdd }) {
             {t("home.h1a")}<br /><span style={{ color: GOLD }}>{t("home.h1b")}</span>
           </h1>
           <p style={{ fontSize: 15, color: DIM, maxWidth: 560, margin: "0 auto 40px", lineHeight: 1.9, animation: "fadeUp .8s .18s ease both" }}>
-            {t("home.sub", { n: n || "25", s: STACKS.length })}
+            {t("home.sub", { n: n || "25", s: stacks.length })}
           </p>
           <div style={{ display: "flex", gap: 14, justifyContent: "center", flexWrap: "wrap", animation: "fadeUp .8s .28s ease both" }}>
             <Btn onClick={() => go("products")}>{t("home.ctaShop")}<ArrowRight size={14} /></Btn>
@@ -1230,13 +1256,14 @@ function ProductsPage({ onAdd }) {
   const { t, lang } = useI18n();
   const { route, go } = useRouter();
   const { products, loading, error } = useProducts();
+  const { stacks } = useStacks();
   const [search, setSearch] = useState("");
   const [cat, setCat] = useState(CATEGORIES.includes(route.query.cat) ? route.query.cat : "All");
   const [sort, setSort] = useState("name");
   useReveal(products.length);
   useEffect(() => { const id = setTimeout(() => { const r = search.trim(); if (r.length >= 3) track("search", r, { results: products.filter((p) => `${p.name} ${p.name_es || ""}`.toLowerCase().includes(r.toLowerCase())).length }); }, 1500); return () => clearTimeout(id); }, [search, products]);
 
-  const stack = STACKS.find((s) => s.id === route.query.stack) || null;
+  const stack = stacks.find((s) => s.id === route.query.stack) || null;
   const stackIds = stack ? new Set(stack.items.map((i) => i.id)) : null;
   const stackNames = stack ? new Set(stack.items.map((i) => i.name)) : null;
 
@@ -1326,6 +1353,7 @@ function ProductDetailPage({ onAdd }) {
   const { t, lang } = useI18n();
   const { route, go } = useRouter();
   const { products, loading } = useProducts();
+  const { stacks } = useStacks();
   const product = products.find((p) => p.id === route.param);
   const [sel, setSel] = useState(0);
   const [added, setAdded] = useState(false);
@@ -1344,7 +1372,7 @@ function ProductDetailPage({ onAdd }) {
   }
   const v = product.variants[Math.min(sel, product.variants.length - 1)];
   const name = pName(product, lang);
-  const inStacks = STACKS.filter((s) => s.items.some((i) => i.id === product.id));
+  const inStacks = stacks.filter((s) => s.items.some((i) => i.id === product.id));
   const handleAdd = () => { onAdd(product, v); setAdded(true); setTimeout(() => setAdded(false), 1800); };
   return (
     <div className="page">
@@ -1407,6 +1435,7 @@ function StacksPage({ onAddMany }) {
   const { t, lang } = useI18n();
   const { go } = useRouter();
   const { products } = useProducts();
+  const { stacks } = useStacks();
   useReveal(products.length);
   const [active, setActive] = useState(null);
   const [notice, setNotice] = useState({});
@@ -1430,7 +1459,7 @@ function StacksPage({ onAddMany }) {
       <div className="wrap" style={{ maxWidth: 1160 }}>
         <SectionHead eyebrow={t("stacks.eyebrow")} title={t("stacks.title")} sub={t("stacks.sub")} />
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(min(330px,100%),1fr))", gap: 24, marginBottom: 60, alignItems: "start" }}>
-          {STACKS.map((s) => {
+          {stacks.map((s) => {
             const isOpen = active === s.id;
             const Icon = STACK_ICONS[s.id] || Layers;
             const matched = s.items.map((item) => ({ item, p: findProduct(item) }));
@@ -2253,7 +2282,7 @@ const buttonStyle = {
 const ghostButton = { ...buttonStyle, background: "transparent", border: `1px solid ${GOLD}`, color: GOLD };
 
 // ── DASHBOARD ───────────────────────────────────────────────────
-const TABS = [["products", "Products"], ["orders", "Orders"], ["customers", "Customers"], ["reviews", "Reviews"], ["analytics", "Analytics"]];
+const TABS = [["products", "Products"], ["stacks", "Stacks"], ["orders", "Orders"], ["customers", "Customers"], ["reviews", "Reviews"], ["analytics", "Analytics"]];
 
 function Dashboard({ onLogout }) {
   const [tab, setTab] = useState("products");
@@ -2276,6 +2305,7 @@ function Dashboard({ onLogout }) {
         </div>
 
         {tab === "products"  && <ProductsTab />}
+        {tab === "stacks"    && <StacksTab />}
         {tab === "orders"    && <OrdersTab />}
         {tab === "customers" && <CustomersTab />}
         {tab === "reviews"   && <ReviewsTab />}
@@ -2872,6 +2902,164 @@ function RankList({ rows, empty = "No data yet." }) {
           <div style={{ height: 4, background: fg(0.08), borderRadius: 2, marginTop: 3 }}><div style={{ height: 4, width: `${(r.value / max) * 100}%`, background: "var(--gold-fill)", borderRadius: 2 }} /></div>
         </div>
       ))}
+    </div>
+  );
+}
+
+// ── STACKS TAB ──────────────────────────────────────────────────
+// Build-a-stack: pick peptides from the live catalog, write the copy
+// (EN required, ES optional), and the stack goes on sale on the Stacks page —
+// "Buy the whole stack" adds every peptide at its starting size, priced live.
+function StacksTab() {
+  const [stacks, setStacks] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(null); // null | "new" | stack id
+  const [form, setForm] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => { load(); }, []);
+
+  async function load() {
+    setLoading(true);
+    const [s, p] = await Promise.all([
+      supabase.from("stacks").select("*").order("sort", { ascending: true }),
+      supabase.from("products").select("id, name").order("name", { ascending: true }),
+    ]);
+    if (!s.error) setStacks(s.data || []);
+    if (!p.error) setProducts(p.data || []);
+    setLoading(false);
+  }
+
+  const emptyStackForm = () => ({ name_en: "", name_es: "", tagline_en: "", tagline_es: "", desc_en: "", desc_es: "", items: [], active: true });
+  function startNew() { setForm(emptyStackForm()); setEditing("new"); }
+  function startEdit(s) {
+    setForm({
+      name_en: s.name_en || "", name_es: s.name_es || "", tagline_en: s.tagline_en || "", tagline_es: s.tagline_es || "",
+      desc_en: s.desc_en || "", desc_es: s.desc_es || "", items: (Array.isArray(s.items) ? s.items : []).map((i) => i.id), active: s.active !== false,
+    });
+    setEditing(s.id);
+  }
+  function cancelEdit() { setEditing(null); setForm(null); }
+  function toggleItem(id) { setForm((f) => ({ ...f, items: f.items.includes(id) ? f.items.filter((x) => x !== id) : [...f.items, id] })); }
+
+  async function save() {
+    if (!form.name_en.trim()) { alert("Stack name (English) is required."); return; }
+    if (!form.items.length) { alert("Pick at least one peptide for the stack."); return; }
+    const id = editing === "new" ? slugify(form.name_en) : editing;
+    if (editing === "new" && stacks.some((s) => s.id === id)) { alert("A stack with this name already exists — edit that one instead, or pick a different name."); return; }
+    setSaving(true);
+    const payload = {
+      id,
+      name_en: form.name_en.trim(),
+      name_es: form.name_es.trim() || null,
+      tagline_en: form.tagline_en.trim() || null,
+      tagline_es: form.tagline_es.trim() || null,
+      desc_en: form.desc_en.trim() || null,
+      desc_es: form.desc_es.trim() || null,
+      items: form.items.map((pid) => { const p = products.find((x) => x.id === pid); return { id: pid, name: p ? p.name : pid }; }),
+      active: !!form.active,
+      sort: editing === "new" ? stacks.length : (stacks.find((s) => s.id === id)?.sort ?? stacks.length),
+      updated_at: new Date().toISOString(),
+    };
+    const { error } = await supabase.from("stacks").upsert(payload);
+    setSaving(false);
+    if (error) { alert("Save failed: " + error.message); return; }
+    cancelEdit();
+    load();
+  }
+
+  async function remove(s) {
+    if (!confirm(`Delete the "${s.name_en}" stack permanently? This can't be undone.`)) return;
+    const { error } = await supabase.from("stacks").delete().eq("id", s.id);
+    if (error) { alert("Delete failed: " + error.message); return; }
+    load();
+  }
+
+  async function toggleActive(s) {
+    const { error } = await supabase.from("stacks").update({ active: !s.active, updated_at: new Date().toISOString() }).eq("id", s.id);
+    if (error) { alert("Could not update: " + error.message); return; }
+    load();
+  }
+
+  if (loading) return <Centered>Loading stacks…</Centered>;
+
+  const F = ({ label, ...props }) => (
+    <div>
+      <label style={labelStyle}>{label}</label>
+      <input style={inputStyle} {...props} />
+    </div>
+  );
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap", marginBottom: 20 }}>
+        <div style={{ fontSize: 12.5, color: fg(0.6), maxWidth: 470, lineHeight: 1.6 }}>
+          Build a stack from the peptides you sell and it goes on sale on the Stacks page right away.
+          Shoppers buy the whole stack in one tap — every peptide is added at its starting size, at the live catalog price.
+        </div>
+        <button onClick={startNew} style={buttonStyle}>+ Add Stack</button>
+      </div>
+
+      {editing && form && (
+        <div style={{ border: "1px solid var(--border)", borderRadius: 10, padding: "6px 22px 22px", marginBottom: 26, background: "var(--panel)" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(230px,1fr))", gap: "0 18px" }}>
+            <F label="Stack name (English) *" value={form.name_en} onChange={(e) => setForm({ ...form, name_en: e.target.value })} placeholder="e.g. Deep Sleep Stack" />
+            <F label="Stack name (Spanish)" value={form.name_es} onChange={(e) => setForm({ ...form, name_es: e.target.value })} placeholder="Optional — falls back to English" />
+            <F label="Tagline (English)" value={form.tagline_en} onChange={(e) => setForm({ ...form, tagline_en: e.target.value })} placeholder="e.g. Rest, Repair, Recharge" />
+            <F label="Tagline (Spanish)" value={form.tagline_es} onChange={(e) => setForm({ ...form, tagline_es: e.target.value })} placeholder="Optional" />
+          </div>
+          <div>
+            <label style={labelStyle}>Description (English)</label>
+            <textarea style={{ ...inputStyle, minHeight: 64, resize: "vertical" }} value={form.desc_en} onChange={(e) => setForm({ ...form, desc_en: e.target.value })} placeholder="What this stack is for, in a sentence or two." />
+          </div>
+          <div>
+            <label style={labelStyle}>Description (Spanish)</label>
+            <textarea style={{ ...inputStyle, minHeight: 64, resize: "vertical" }} value={form.desc_es} onChange={(e) => setForm({ ...form, desc_es: e.target.value })} placeholder="Optional — falls back to English" />
+          </div>
+          <div>
+            <label style={labelStyle}>Peptides in this stack * ({form.items.length} picked)</label>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(190px,1fr))", gap: "6px 14px", maxHeight: 250, overflowY: "auto", border: "1px solid var(--border)", borderRadius: 8, padding: "12px 14px" }}>
+              {products.map((p) => (
+                <label key={p.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, cursor: "pointer", padding: "3px 0" }}>
+                  <input type="checkbox" checked={form.items.includes(p.id)} onChange={() => toggleItem(p.id)} style={{ accentColor: GOLD, width: 15, height: 15 }} />
+                  {p.name}
+                </label>
+              ))}
+            </div>
+          </div>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, marginTop: 16, cursor: "pointer" }}>
+            <input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} style={{ accentColor: GOLD, width: 15, height: 15 }} />
+            On sale (visible on the Stacks page)
+          </label>
+          <div style={{ display: "flex", gap: 10, marginTop: 20, flexWrap: "wrap" }}>
+            <button onClick={save} disabled={saving} style={buttonStyle}>{saving ? "Saving…" : editing === "new" ? "Create Stack" : "Save Changes"}</button>
+            <button onClick={cancelEdit} style={ghostButton}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: "grid", gap: 12 }}>
+        {stacks.map((s) => (
+          <div key={s.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 14, flexWrap: "wrap", border: "1px solid var(--border)", borderRadius: 10, padding: "14px 18px", background: "var(--panel)" }}>
+            <div style={{ minWidth: 220 }}>
+              <div style={{ fontSize: 14.5, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                {s.name_en}
+                <span style={{ fontSize: 9.5, letterSpacing: 1.2, padding: "3px 8px", borderRadius: 99, border: `1px solid ${s.active ? "var(--ok, #4caf7d)" : "var(--border)"}`, color: s.active ? "var(--ok, #4caf7d)" : fg(0.5), textTransform: "uppercase" }}>{s.active ? "On sale" : "Hidden"}</span>
+              </div>
+              <div style={{ fontSize: 11.5, color: fg(0.55), marginTop: 4, lineHeight: 1.6 }}>
+                {(Array.isArray(s.items) ? s.items : []).map((i) => i.name || i.id).join(" · ") || "No peptides yet"}
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button onClick={() => startEdit(s)} style={ghostButton}>Edit</button>
+              <button onClick={() => toggleActive(s)} style={ghostButton}>{s.active ? "Hide" : "Show"}</button>
+              <button onClick={() => remove(s)} style={{ ...ghostButton, borderColor: "var(--warn, #c66)", color: "var(--warn, #c66)" }}>Delete</button>
+            </div>
+          </div>
+        ))}
+        {!stacks.length && <div style={{ fontSize: 13, color: fg(0.6), lineHeight: 1.7 }}>No stacks in the database yet. If the setup SQL hasn't run, the storefront keeps showing the built-in stacks — run stacks-setup.sql, then add your first stack here.</div>}
+      </div>
     </div>
   );
 }
@@ -3855,10 +4043,12 @@ function App() {
       <LangProvider>
         <RouterProvider>
           <ProductsProvider>
+            <StacksProvider>
             <AuthProvider>
               <style>{G}</style>
               <Shell />
             </AuthProvider>
+            </StacksProvider>
           </ProductsProvider>
         </RouterProvider>
       </LangProvider>
