@@ -1,5 +1,6 @@
 import LOGO from "./logoData.js";
 import { LOGO2 } from "./logoData.js";
+import { HERO_BG } from "./heroBgData.js";
 import React, { useState, useEffect, useCallback, useRef, createContext, useContext, useMemo } from "react";
 import ReactDOM from "react-dom/client";
 import { createClient } from "@supabase/supabase-js";
@@ -216,6 +217,15 @@ const G = `
   @keyframes menuIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
   @keyframes floatY{0%,100%{transform:translateY(0)}50%{transform:translateY(-9px)}}
   @keyframes heroBreathe{0%,100%{opacity:.6}50%{opacity:1}}
+  /* gold molecular scenery behind the TP globe (entry screen + home hero).
+     Motion is deliberately minimal: a 52s drift between two near-identical scales. */
+  .scenery{position:absolute;inset:0;background-size:cover;background-position:center 38%;pointer-events:none;opacity:.55}
+  .scenery-hero{opacity:.30}
+  .scenery-drift{animation:sceneryDrift 52s ease-in-out infinite alternate}
+  @keyframes sceneryDrift{from{transform:scale(1.02)}to{transform:scale(1.08) translateY(-12px)}}
+  html[data-theme="light"] .scenery{opacity:.13}
+  html[data-theme="light"] .scenery-hero{opacity:.10}
+  @media (prefers-reduced-motion: reduce){.scenery-drift{animation:none}}
   @keyframes particle{0%{transform:translateY(0) translateX(0);opacity:0}15%{opacity:1}85%{opacity:.6}100%{transform:translateY(-120vh) translateX(var(--dx,20px));opacity:0}}
   @keyframes logoRingCCW{0%{transform:translate(-50%,-50%) rotate(0deg)}100%{transform:translate(-50%,-50%) rotate(-360deg)}}
   @keyframes bump{0%{transform:scale(1)}40%{transform:scale(1.35)}100%{transform:scale(1)}}
@@ -933,6 +943,8 @@ function IntroPage() {
         <LangToggle />
         <ThemeToggle />
       </div>
+      <div aria-hidden="true" className="scenery scenery-drift" style={{ backgroundImage: `url(${HERO_BG})` }} />
+      <div aria-hidden="true" style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, transparent 55%, var(--bg) 98%)", pointerEvents: "none" }} />
       <FloatingParticles />
       <div aria-hidden="true" style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse at 50% 40%, var(--hero-glow) 0%, transparent 62%)", animation: "heroBreathe 7s ease-in-out infinite", pointerEvents: "none" }} />
       <div style={{ position: "relative", zIndex: 1, textAlign: "center", maxWidth: 430, width: "100%" }}>
@@ -977,6 +989,8 @@ function HomePage({ onAdd }) {
   return (
     <>
       <section data-tour="hero" style={{ position: "relative", overflow: "hidden", padding: "150px 24px 96px", textAlign: "center" }}>
+        <div aria-hidden="true" className="scenery scenery-hero scenery-drift" style={{ backgroundImage: `url(${HERO_BG})` }} />
+        <div aria-hidden="true" style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, transparent 52%, var(--bg) 99%)", pointerEvents: "none" }} />
         <div aria-hidden="true" style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse at 50% 38%, var(--hero-glow) 0%, transparent 64%)", animation: "heroBreathe 7s ease-in-out infinite", pointerEvents: "none" }} />
         <img aria-hidden="true" alt="" src={LOGO2} style={{ position: "absolute", top: "50%", left: "50%", width: "min(620px,92vw)", transform: "translate(-50%,-52%)", opacity: 0.07, pointerEvents: "none", filter: "saturate(.8)" }} />
         <div style={{ position: "relative", zIndex: 1 }}>
