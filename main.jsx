@@ -1115,9 +1115,11 @@ function ReviewsSection() {
   };
 
   return (
-    <section data-tour="reviews" style={{ padding: "76px 24px 84px", background: "var(--bg2)", borderTop: `1px solid ${BORDER}`, borderBottom: `1px solid ${BORDER}` }}>
+    <section style={{ padding: "76px 24px 84px", background: "var(--bg2)", borderTop: `1px solid ${BORDER}`, borderBottom: `1px solid ${BORDER}` }}>
       <div className="wrap">
-        <SectionHead eyebrow={t("home.testimonialsEyebrow")} title={t("home.testimonialsTitle")} />
+        <div data-tour="reviews">
+          <SectionHead eyebrow={t("home.testimonialsEyebrow")} title={t("home.testimonialsTitle")} />
+        </div>
         {loaded && reviews.length === 0 ? (
           <p style={{ textAlign: "center", color: DIM, fontSize: 14, lineHeight: 1.9, maxWidth: 520, margin: "0 auto 8px" }}>
             {t("home.reviewsEmpty")}
